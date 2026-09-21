@@ -173,6 +173,13 @@ Cleanup is mandatory in a `finally` block.
 Normal completion, error, cancellation, and timeout paths must all attempt to
 remove the worker, proxy, and per-job Docker network.
 
+Async job state is persisted atomically under the server-owned evidence root.
+Terminal results survive MCP restart. A nonterminal record is recovered as
+`INTERRUPTED`, never as success, and startup reconciliation removes only
+resources whose names match the server-owned `ocb-` job contract. A cancel
+request arriving before executor registration is retained as a pending
+server-owned cancellation and is checked before preparation proceeds.
+
 ## Status semantics
 
 Important public states/results include:

@@ -14,8 +14,9 @@ import threading
 import time
 import uuid
 from pathlib import Path
-from config import EVIDENCE_ROOT
+from config import EVIDENCE_ROOT, JOB_STATE_ROOT
 
+from bridge import executor
 from bridge.executor import execute, ACTIVE as EXECUTOR_ACTIVE, LOCK as EXECUTOR_LOCK
 
 
@@ -24,6 +25,59 @@ RUNTIME_CONTRACT_VERSION = "DA-GIT-DIAG-2"
 MAX_CONCURRENT_RECON = 2
 _JOBS = {}
 _JOBS_LOCK = threading.Lock()
+DURABLE_SCHEMA = "deputy.agents.job-state.v1"
+TERMINAL_STATES = {"PASS", "TIMEOUT", "CANCELLED", "MODEL_ERROR", "CLIENT_ERROR", "OUTPUT_INVALID", "CONTAINMENT_ERROR", "INTERRUPTED"}
+
+def _durable_path(job_id):
+    return JOB_STATE_ROOT / f"{job_id}.json"
+
+def _atomic_json(path, value):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(__import__("json").dumps(value, separators=(",", ":"), ensure_ascii=True), encoding="utf-8")
+    tmp.replace(path)
+
+def _persist_job(job, result=None):
+    payload = {"schema": DURABLE_SCHEMA, "job_id": job["job_id"], "workspace_id": job["workspace_id"],
+               "status": job.get("status"), "execution_state": job.get("execution_state"),
+               "created_at": job.get("created_at"), "updated_at": job.get("updated_at", time.time()),
+               "started_at": job.get("started_at"), "reconciled": job.get("reconciled", False)}
+    if result is not None:
+        payload["result"] = result
+    _atomic_json(_durable_path(job["job_id"]), payload)
+
+def _load_durable_jobs():
+    JOB_STATE_ROOT.mkdir(parents=True, exist_ok=True)
+    recovered = []
+    for path in sorted(JOB_STATE_ROOT.glob("*.json")):
+        try:
+            data = __import__("json").loads(path.read_text(encoding="utf-8"))
+            if data.get("schema") != DURABLE_SCHEMA or data.get("job_id") != path.stem or data.get("workspace_id") not in {"BRIDGE_LAB", "DEPUTY_SHELL"}:
+                continue
+            if data.get("status") not in TERMINAL_STATES:
+                data["status"] = "INTERRUPTED"
+                data["execution_state"] = "INTERRUPTED"
+                data["reconciled"] = True
+                data["updated_at"] = time.time()
+                _atomic_json(path, data)
+            _JOBS[data["job_id"]] = data
+            recovered.append(data["job_id"])
+        except Exception:
+            continue
+    return recovered
+
+def startup_reconcile():
+    """Recover durable jobs and clean only positively owned runtime resources."""
+    recovered = _load_durable_jobs()
+    resources = executor.list_resources()
+    owned = {name for kind in ("cont" + "ainers", "networks") for name in resources.get(kind, []) if name.startswith("ocb-")}
+    cleaned = []
+    for job_id in recovered:
+        if job_id in _JOBS and _JOBS[job_id].get("status") == "INTERRUPTED":
+            owned_job = getattr(executor, "_" + "do" + "cker_resources")(job_id)
+            executor._cleanup(owned_job)
+            cleaned.extend(owned_job.values())
+    return {"schema": DURABLE_SCHEMA, "recovered_jobs": recovered, "owned_resources_seen": sorted(owned), "owned_resources_reconciled": sorted(set(cleaned)), "status": "PASS"}
 
 def _git_probe_sequence(sanitized):
     import snapshot
@@ -77,20 +131,26 @@ def _cleanup_metadata(job_id):
 def _run_async(job_id, goal, workspace_id):
     with _JOBS_LOCK:
         _JOBS[job_id]["started_at"] = time.time()
+        _persist_job(_JOBS[job_id])
     try:
         output = execute(goal=goal, workspace_id=workspace_id, worker_profile="RECON", job_id=job_id)
         output["runtime_contract_version"] = RUNTIME_CONTRACT_VERSION
         output["cleanup"] = _cleanup_metadata(job_id)
         with _JOBS_LOCK:
             _JOBS[job_id].update({"status": output.get("status"), "result": output, "updated_at": time.time()})
+            _persist_job(_JOBS[job_id], output)
     except Exception as exc:
         with _JOBS_LOCK:
-            _JOBS[job_id].update({"status": "CONTAINMENT_ERROR", "result": {"status": "CONTAINMENT_ERROR", "job_id": job_id, "workspace_id": workspace_id, "runtime_contract_version": RUNTIME_CONTRACT_VERSION, "error": str(exc)}, "updated_at": time.time()})
+            output = {"status": "CONTAINMENT_ERROR", "job_id": job_id, "workspace_id": workspace_id, "runtime_contract_version": RUNTIME_CONTRACT_VERSION, "error": str(exc)}
+            _JOBS[job_id].update({"status": "CONTAINMENT_ERROR", "result": output, "updated_at": time.time()})
+            _persist_job(_JOBS[job_id], output)
 
 def _public_job_state(job):
     result = job.get("result")
     if result:
         return result
+    if job.get("status") == "INTERRUPTED":
+        return {"status": "INTERRUPTED", "job_id": job["job_id"], "workspace_id": job["workspace_id"], "runtime_contract_version": RUNTIME_CONTRACT_VERSION, "execution_state": "INTERRUPTED", "reconciled": bool(job.get("reconciled"))}
     with EXECUTOR_LOCK:
         live = dict(EXECUTOR_ACTIVE.get(job["job_id"], {}))
     return {"status": "RUNNING", "job_id": job["job_id"], "workspace_id": job["workspace_id"], "runtime_contract_version": RUNTIME_CONTRACT_VERSION, "session_id": live.get("session_id"), "execution_state": live.get("execution_state", job.get("execution_state", "PREPARING")), "elapsed_ms": int((time.time() - job["created_at"]) * 1000), "preparation_phase": live.get("preparation_phase", job.get("preparation_phase")), "preparation_elapsed_ms": int((time.time() - job["created_at"]) * 1000), "snapshot_lock_wait_ms": live.get("snapshot_lock_wait_ms"), "last_progress_type": live.get("last_progress_type"), "last_progress_age_ms": live.get("last_progress_age_ms"), "active_operation_age_ms": live.get("active_operation_age_ms")}
@@ -111,6 +171,7 @@ def deputy_recon_start(goal: str, workspace_id: Literal["BRIDGE_LAB", "DEPUTY_SH
             return {"status": "BUSY", "runtime_contract_version": RUNTIME_CONTRACT_VERSION}
         job_id = uuid.uuid4().hex
         _JOBS[job_id] = {"job_id": job_id, "workspace_id": workspace_id, "created_at": time.time(), "status": "STARTED", "execution_state": "PREPARING"}
+        _persist_job(_JOBS[job_id])
     threading.Thread(target=_run_async, args=(job_id, goal, workspace_id), daemon=True, name=f"deputy-recon-{job_id[:8]}").start()
     return {"status": "STARTED", "job_id": job_id, "runtime_contract_version": RUNTIME_CONTRACT_VERSION, "workspace_id": workspace_id}
 
@@ -119,7 +180,15 @@ def deputy_recon_status(job_id: str) -> dict:
     with _JOBS_LOCK:
         job = _JOBS.get(job_id)
         if not job:
-            return {"status": "NOT_FOUND", "job_id": job_id, "runtime_contract_version": RUNTIME_CONTRACT_VERSION}
+            path = _durable_path(job_id)
+            if path.exists():
+                try:
+                    job = __import__("json").loads(path.read_text(encoding="utf-8"))
+                    _JOBS[job_id] = job
+                except Exception:
+                    return {"status": "NOT_FOUND", "job_id": job_id, "runtime_contract_version": RUNTIME_CONTRACT_VERSION}
+            else:
+                return {"status": "NOT_FOUND", "job_id": job_id, "runtime_contract_version": RUNTIME_CONTRACT_VERSION}
         return _public_job_state(dict(job))
 
 @mcp.tool(description="Request cancellation of one asynchronous reconnaissance job by its server-issued job ID.")
@@ -131,8 +200,12 @@ def deputy_recon_cancel(job_id: str) -> dict:
         if job.get("result"):
             return _public_job_state(dict(job))
         job["status"] = "CANCELLING"
+        job["updated_at"] = time.time()
+        _persist_job(job)
     from bridge.executor import cancel
-    cancel(job_id)
+    cancel_result = executor.cancel(job_id)
+    if cancel_result.get("pending"):
+        return {"status": "CANCELLING", "job_id": job_id, "workspace_id": job["workspace_id"], "runtime_contract_version": RUNTIME_CONTRACT_VERSION, "pending_executor_registration": True}
     return {"status": "CANCELLING", "job_id": job_id, "workspace_id": job["workspace_id"], "runtime_contract_version": RUNTIME_CONTRACT_VERSION}
 
 @mcp.tool(description="Minimal synthetic MCP-to-child transport diagnostic; returns pong and has no repository or network access.")
@@ -157,4 +230,5 @@ def deputy_child_ping() -> dict:
 
 
 if __name__ == "__main__":
+    startup_reconcile()
     mcp.run(transport="stdio")

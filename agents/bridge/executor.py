@@ -16,6 +16,7 @@ ACTIVE_OPERATION_TIMEOUT_MS = 900000
 EVIDENCE_LIMIT = 8192
 ACTIVE = {}
 LOCK = threading.Lock()
+PENDING_CANCELS = set()
 SNAPSHOT_LOCK = threading.Lock()
 class PreparationCancelled(RuntimeError):
     pass
@@ -227,7 +228,9 @@ def list_resources():
 
 def cancel(job_id):
     with LOCK: item=ACTIVE.get(job_id)
-    if not item: return {"status":"NOT_FOUND","job_id":job_id}
+    if not item:
+        with LOCK: PENDING_CANCELS.add(job_id)
+        return {"status":"CANCEL_REQUESTED","job_id":job_id,"pending":True}
     item["cancel"].set()
     _run([str(DOCKER),"rm","-f",item["resources"]["worker"]],timeout=15)
     return {"status":"CANCEL_REQUESTED","job_id":job_id}
@@ -238,7 +241,12 @@ def execute(goal, workspace_id="BRIDGE_LAB", worker_profile="RECON", inject_fail
     evdir=LAB/"evidence"/job; snap=evdir/"snapshot"; evdir.mkdir(parents=True,exist_ok=False)
     request={"goal":goal,"workspace_id":workspace_id,"worker_profile":worker_profile,"job_id":job}; (evdir/"request.json").write_text(json.dumps(request,indent=2),encoding="utf-8")
     state={"resources":res,"cancel":cancel_event,"execution_state":"PREPARING","created_at":time.time()};
-    with LOCK: ACTIVE[job]=state
+    with LOCK:
+        ACTIVE[job]=state
+        pending_cancel = job in PENDING_CANCELS
+        if pending_cancel:
+            PENDING_CANCELS.discard(job)
+            cancel_event.set()
     _preparation_state(evdir, job, workspace_id, state, "SNAPSHOT_LOCK_WAIT", started)
     manifest=None; stdout=""; stderr=""; exit_code=None; status="CONTAINMENT_ERROR"; parsed={}
     try:

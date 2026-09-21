@@ -1002,6 +1002,22 @@ Adapter-contract evidence reports `child_idle_timeout_ms`,
 `outer_watchdog_ms`. The current executor passes the absolute timeout into
 process collection, additionally bounded by the remaining outer watchdog.
 
+### 14.4 Durable lifecycle state
+
+The asynchronous MCP layer writes a bounded `deputy.agents.job-state.v1`
+record atomically beneath the server-owned evidence root. Terminal results are
+reloadable after an MCP restart. Nonterminal records are recovered as
+`INTERRUPTED`; they are not treated as successful completion. Startup
+reconciliation uses only the existing `ocb-<job>` ownership naming contract,
+records what it found, and attempts cleanup only for those positively owned
+resources. Unrelated runtime resources are left untouched.
+
+Cancellation has an explicit pending handoff. The public job is registered and
+the request is durably marked before the executor's active entry is guaranteed.
+If cancellation arrives in that interval, the executor records the job ID in a
+pending set and checks it immediately on registration, before snapshot or child
+execution. Repeated cancellation and reconciliation are idempotent.
+
 Models reading the code must not interpret 300000 ms as the actual hard stop.
 
 ---
