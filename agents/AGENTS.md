@@ -204,12 +204,8 @@ Do not collapse these into a generic success/failure state.
 Treat these as known implementation facts, not invitations to refactor them
 without a milestone:
 
-- async job state is in-memory and does not survive MCP process restart;
 - `deputy_git_probe` is temporary diagnostic surface;
 - host paths are server-owned and configurable through `DEPUTYAGENTS_*` environment variables;
-- the async cancellation path has a known early-registration race worth
-  hardening later;
-- evidence/resource reconciliation across server restart is not yet durable;
 - the OpenCode writable-state tmpfs set may need future expansion;
 - packaging/installer ergonomics for other environments are not yet complete.
 

@@ -21,7 +21,7 @@ from bridge.executor import execute, ACTIVE as EXECUTOR_ACTIVE, LOCK as EXECUTOR
 
 
 mcp = FastMCP("DeputyAgentsMCP")
-RUNTIME_CONTRACT_VERSION = "DA-GIT-DIAG-2"
+RUNTIME_CONTRACT_VERSION = "DA-LIFECYCLE-1"
 MAX_CONCURRENT_RECON = 2
 _JOBS = {}
 _JOBS_LOCK = threading.Lock()
@@ -117,7 +117,7 @@ def _git_probe_async_thread():
 def deputy_git_probe() -> dict:
     import snapshot
     names = sorted(name for name in os.environ if name.startswith("GIT_"))
-    return {"runtime_contract_version": "DA-GIT-DIAG-2", "identity": {"git_executable": Path(snapshot.GIT or "git").name, "git_version": subprocess.run([snapshot.GIT or "git", "--version"], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=3).stdout.strip(), "python_executable": Path(sys.executable).name, "process_architecture": platform.architecture()[0], "user": getpass.getuser(), "inherited_git_variable_names": names}, "direct_production_environment": _git_probe_sequence(False), "direct_sanitized_environment": _git_probe_sequence(True), "async_thread_production_environment": _git_probe_async_thread()}
+    return {"runtime_contract_version": RUNTIME_CONTRACT_VERSION, "identity": {"git_executable": Path(snapshot.GIT or "git").name, "git_version": subprocess.run([snapshot.GIT or "git", "--version"], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=3).stdout.strip(), "python_executable": Path(sys.executable).name, "process_architecture": platform.architecture()[0], "user": getpass.getuser(), "inherited_git_variable_names": names}, "direct_production_environment": _git_probe_sequence(False), "direct_sanitized_environment": _git_probe_sequence(True), "async_thread_production_environment": _git_probe_async_thread()}
 
 def _cleanup_metadata(job_id):
     path = EVIDENCE_ROOT / job_id / "cleanup.json"

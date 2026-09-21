@@ -19,7 +19,7 @@ class DeputyAgentsContractTests(unittest.TestCase):
     def test_mcp_child_ping_returns_pong(self):
         import server
         result = server.deputy_child_ping()
-        self.assertEqual(result["runtime_contract_version"], "DA-GIT-DIAG-2")
+        self.assertEqual(result["runtime_contract_version"], "DA-LIFECYCLE-1")
         self.assertEqual(result["python_child"]["status"], "PASS")
         self.assertEqual(result["python_child"]["stdout"].strip(), "pong")
         self.assertEqual(result["python_child"]["exit_code"], 0)
@@ -229,7 +229,7 @@ class DeputyAgentsContractTests(unittest.TestCase):
 
     def test_async_runtime_and_lifecycle_tools_are_exposed(self):
         import server
-        self.assertEqual(server.RUNTIME_CONTRACT_VERSION, "DA-GIT-DIAG-2")
+        self.assertEqual(server.RUNTIME_CONTRACT_VERSION, "DA-LIFECYCLE-1")
         for name in ("deputy_recon_start", "deputy_recon_status", "deputy_recon_cancel"):
             self.assertTrue(hasattr(server, name))
 

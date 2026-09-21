@@ -8,7 +8,7 @@ It is implementation documentation, not an aspirational design document.
 
 Current runtime contract marker:
 
-`DA-GIT-DIAG-2`
+`DA-LIFECYCLE-1`
 
 Current primary snapshot policy:
 
@@ -106,7 +106,7 @@ Responsibilities:
 - creates the FastMCP server;
 - publishes public tools;
 - validates async concurrency at the public boundary;
-- owns the in-memory async job registry;
+- owns the durable async job registry and in-memory active-execution index;
 - launches async worker threads;
 - exposes live/terminal status;
 - forwards cancellation;
@@ -116,7 +116,7 @@ Responsibilities:
 Important current constants:
 
 ```text
-RUNTIME_CONTRACT_VERSION = DA-GIT-DIAG-2
+RUNTIME_CONTRACT_VERSION = DA-LIFECYCLE-1
 MAX_CONCURRENT_RECON = 2
 ```
 
@@ -1254,7 +1254,7 @@ reconnaissance succeeded.
 Validated run:
 
 ```text
-runtime                         DA-GIT-DIAG-2
+runtime                         DA-LIFECYCLE-1
 status                          PASS
 snapshot policy                 DA-FAST-2-positive-allowlist-v1
 snapshot file count             625
@@ -1299,19 +1299,18 @@ Current known debt includes:
 
 ### Async durability
 
-`_JOBS` is in memory.
+The durable job-state schema is `deputy.agents.job-state.v1`. Terminal results
+survive MCP restart. Nonterminal jobs recovered during startup are marked
+`INTERRUPTED`; recovery does not fabricate success and only positively owned
+`ocb-*` resources are considered for cleanup. Unrelated Docker resources are
+left untouched. Reconciliation is idempotent.
 
-MCP restart loses the public in-memory registry even though evidence files can
-remain on disk.
+### Cancellation registration contract
 
-Future hardening can reconcile durable evidence back into job state.
-
-### Cancellation registration race
-
-A cancellation can arrive before the executor has registered the job in
-`ACTIVE`.
-
-Public and internal cancellation status can momentarily disagree.
+Cancellation accepted before executor registration is retained as a pending
+request. The executor observes that request before preparation proceeds, so
+early cancellation is not lost. Cancellation and reconciliation are
+idempotent.
 
 ### Diagnostic tool exposure
 
