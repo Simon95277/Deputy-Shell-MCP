@@ -6,6 +6,12 @@ logs/
 snapshots/
 bridge-lab/
 deputy-shell-source/
+workers/runtime/
+workers/android-sdk/
+workers/deputy-shell-source/
+agents/local-snapshots/
+agents/deputy-shell-source/
+agents/evidence/
 
 # Local environment and sensitive configuration
 .env

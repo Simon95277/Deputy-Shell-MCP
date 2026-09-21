@@ -1,12 +1,14 @@
-# Threat model
+# Umbrella threat model
 
-The MCP accepts bounded reconnaissance requests and creates sanitized,
-read-only snapshots for a contained worker. The caller cannot choose arbitrary
-executables, argv, cwd, environment, repository roots, network destinations,
-or device targets. The worker receives only the job snapshot through a
-read-only mount and provider-only network policy.
+## Agents
 
-The repository snapshot is a point-in-time file selection, not a transactionally
-coherent whole-tree snapshot. A source mutation during capture is detected by
-the before/after state comparison; stronger whole-snapshot coherence remains a
-future hardening item.
+The AI child is untrusted. The design addresses prompt injection, provider
+exposure, snapshot integrity, Docker containment, provider-only networking,
+and lifecycle cleanup. The live repository is not mounted.
+
+## Workers
+
+Workers are trusted deterministic code. The relevant risks are capability
+widening, host process execution, repository mutation, path escape, device
+mutation, ADB authority, and trusted executable/configuration boundaries.
+Workers are not claimed to be containerized.

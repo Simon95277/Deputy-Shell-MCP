@@ -75,8 +75,8 @@ class DeputyAgentsContractTests(unittest.TestCase):
     def test_timeout_is_server_owned_and_timed(self):
         text = (ROOT / "bridge" / "executor.py").read_text(encoding="utf-8")
         self.assertIn("PREPARATION_BUDGET_MS = 15000", text)
-        self.assertIn("CHILD_EXECUTION_BUDGET_MS = 300000", text)
-        self.assertIn("CHILD_EXECUTION_BUDGET_SECONDS = CHILD_EXECUTION_BUDGET_MS // 1000", text)
+        self.assertNotIn("CHILD_EXECUTION_BUDGET_MS", text)
+        self.assertNotIn("child_execution_budget_ms", text)
         self.assertNotIn("timeout_seconds", text[text.index("def execute"):text.index("def execute") + 180])
         self.assertIn("inject_timeout=False", text)
         self.assertIn('"phase_timings_ms"', (ROOT / "bridge" / "core.py").read_text(encoding="utf-8"))

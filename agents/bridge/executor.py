@@ -5,10 +5,8 @@ from .core import LAB, DOCKER, OPENCODE_IMAGE, SQUID_IMAGE, WORKSPACES, WORKERS,
 from snapshot import SNAPSHOT_ROOT, REPO, create_snapshot, PreparationTimeout
 
 PREPARATION_BUDGET_MS = 15000
-CHILD_EXECUTION_BUDGET_MS = 300000
 OUTER_WATCHDOG_MS = 1860000
 PREPARATION_BUDGET_SECONDS = PREPARATION_BUDGET_MS // 1000
-CHILD_EXECUTION_BUDGET_SECONDS = CHILD_EXECUTION_BUDGET_MS // 1000
 OUTER_WATCHDOG_SECONDS = OUTER_WATCHDOG_MS // 1000
 CHILD_IDLE_TIMEOUT_MS = 180000
 CHILD_ABSOLUTE_TIMEOUT_MS = 1800000
@@ -276,7 +274,7 @@ def execute(goal, workspace_id="BRIDGE_LAB", worker_profile="RECON", inject_fail
         argv[argv.index("--network")+1]=res["network"]
         containment = _validate_mount_contract(argv, workspace_id, snap)
         # Docker image is already in argv; replace the logical proxy host with the job name.
-        (evdir/"adapter-contract.json").write_text(json.dumps({"network":res["network"],"proxy":res["proxy"],"worker":res["worker"],"squid_image":SQUID_IMAGE,"opencode_image":OPENCODE_IMAGE,"worker_argv":argv,"stdin":"DEVNULL","preparation_budget_ms":PREPARATION_BUDGET_MS,"child_execution_budget_ms":CHILD_EXECUTION_BUDGET_MS,"outer_watchdog_ms":OUTER_WATCHDOG_MS},indent=2),encoding="utf-8")
+        (evdir/"adapter-contract.json").write_text(json.dumps({"network":res["network"],"proxy":res["proxy"],"worker":res["worker"],"squid_image":SQUID_IMAGE,"opencode_image":OPENCODE_IMAGE,"worker_argv":argv,"stdin":"DEVNULL","preparation_budget_ms":PREPARATION_BUDGET_MS,"child_idle_timeout_ms":CHILD_IDLE_TIMEOUT_MS,"active_operation_timeout_ms":ACTIVE_OPERATION_TIMEOUT_MS,"child_absolute_timeout_ms":CHILD_ABSOLUTE_TIMEOUT_MS,"outer_watchdog_ms":OUTER_WATCHDOG_MS},indent=2),encoding="utf-8")
         _preparation_state(evdir, job, workspace_id, state, "WORKER_LAUNCH", started)
         _prepare_guard(preparation_deadline, state)
         marks["worker_start_ms"]=int((time.monotonic()-started)*1000); state["execution_state"]="RUNNING"; child_started=time.monotonic(); proc=subprocess.Popen(argv,stdout=subprocess.PIPE,stderr=subprocess.PIPE,stdin=subprocess.DEVNULL,text=True)

@@ -1,5 +1,26 @@
 # Roadmap
 
-- Prove and implement stronger whole-snapshot byte coherence.
-- Improve provider CONNECT observability without weakening provider-only egress.
-- Keep public schemas and containment policy aligned as the worker evolves.
+## Agents hardening
+
+- durable job state across MCP restart;
+- early cancellation registration race;
+- startup orphan/resource reconciliation;
+- whole-snapshot byte-level coherence;
+- remove or gate `deputy_git_probe`;
+- explicit provider/model policy;
+- packaging and installer maturity;
+- broader privacy/generalization.
+
+## Workers
+
+- V2/C1 remains research only;
+- future capability expansion requires an explicit architecture decision;
+- release and packaging maturity.
+
+## Shared
+
+- CI;
+- reproducible dependency validation;
+- installer/release artifacts;
+- contributor workflow;
+- v1.0 maturity gate.
