@@ -1,0 +1,36 @@
+.venv/
+evidence/
+local-snapshots/
+runs/
+logs/
+snapshots/
+bridge-lab/
+deputy-shell-source/
+
+# Local environment and sensitive configuration
+.env
+.env.*
+!.env.example
+local.properties
+google-services.json
+signing.properties
+credentials/
+tokens/
+auth/
+sessions/
+
+# Keys / signing material
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# Python / test artifacts
+**/__pycache__/
+*.py[cod]
+*.log
+*.tmp
+.pytest_cache/
+.coverage
