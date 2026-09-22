@@ -12,6 +12,12 @@ sanitized, read-only snapshot. The live repository is not mounted. Docker
 containment, provider-only egress, bounded lifecycle, and mandatory cleanup
 protect host authority. Its findings are advisory evidence.
 
+The default Agents MCP surface contains the four reconnaissance lifecycle
+tools: `deputy_recon`, `deputy_recon_start`, `deputy_recon_status`, and
+`deputy_recon_cancel`. The fixed `deputy_child_ping` and `deputy_git_probe`
+diagnostics are development-only and appear only when the server owner sets
+`DEPUTYAGENTS_ENABLE_DIAGNOSTICS=1`; callers cannot enable them.
+
 ## Workers
 
 `workers/` runs deterministic bounded operations through a fixed capability

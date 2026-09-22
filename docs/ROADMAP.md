@@ -6,7 +6,8 @@
 - **Completed in lifecycle hardening:** early cancellation registration race;
 - **Completed in lifecycle hardening:** startup orphan/resource reconciliation;
 - **Completed in snapshot coherence:** whole-snapshot byte-level coherence;
-- remove or gate `deputy_git_probe`;
+- **Completed in diagnostic-surface hardening:** gate `deputy_git_probe` and
+  `deputy_child_ping` behind explicit server-owned development configuration;
 - explicit provider/model policy;
 - packaging and installer maturity;
 - broader privacy/generalization.

@@ -4,11 +4,10 @@ from typing import Literal
 
 from mcp.server import MCPServer
 
+import os
 import subprocess
 import sys
-import os
 import platform
-import getpass
 import shutil
 import threading
 import time
@@ -21,7 +20,9 @@ from bridge.executor import execute, ACTIVE as EXECUTOR_ACTIVE, LOCK as EXECUTOR
 
 
 mcp = MCPServer("DeputyAgentsMCP")
-RUNTIME_CONTRACT_VERSION = "DA-COHERENCE-1"
+RUNTIME_CONTRACT_VERSION = "DA-SURFACE-1"
+DIAGNOSTICS_ENVIRONMENT_VARIABLE = "DEPUTYAGENTS_ENABLE_DIAGNOSTICS"
+DIAGNOSTICS_ENABLED = os.environ.get(DIAGNOSTICS_ENVIRONMENT_VARIABLE) == "1"
 MAX_CONCURRENT_RECON = 2
 _JOBS = {}
 _JOBS_LOCK = threading.Lock()
@@ -113,14 +114,13 @@ def _git_probe_async_thread():
         return {"status": "TIMEOUT", "reason": "ASYNC_GIT_PROBE_JOIN_TIMEOUT"}
     return holder.get("result", {"status": "ERROR", "reason": "ASYNC_GIT_PROBE_NO_RESULT"})
 
-@mcp.tool(description="Diagnostic-only bounded read-only Git probe for the live MCP process; no repository mutation or worker execution.")
 def deputy_git_probe() -> dict:
     import snapshot
     names = sorted(name for name in os.environ if name.startswith("GIT_"))
-    return {"runtime_contract_version": RUNTIME_CONTRACT_VERSION, "identity": {"git_executable": Path(snapshot.GIT or "git").name, "git_version": subprocess.run([snapshot.GIT or "git", "--version"], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=3).stdout.strip(), "python_executable": Path(sys.executable).name, "process_architecture": platform.architecture()[0], "user": getpass.getuser(), "inherited_git_variable_names": names}, "direct_production_environment": _git_probe_sequence(False), "direct_sanitized_environment": _git_probe_sequence(True), "async_thread_production_environment": _git_probe_async_thread()}
+    return {"runtime_contract_version": RUNTIME_CONTRACT_VERSION, "identity": {"git_executable": Path(snapshot.GIT or "git").name, "git_version": subprocess.run([snapshot.GIT or "git", "--version"], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=3).stdout.strip(), "python_executable": Path(sys.executable).name, "process_architecture": platform.architecture()[0], "inherited_git_variable_names": names}, "direct_production_environment": _git_probe_sequence(False), "direct_sanitized_environment": _git_probe_sequence(True), "async_thread_production_environment": _git_probe_async_thread()}
 
 def _cleanup_metadata(job_id):
-    path = EVIDENCE_ROOT / job_id / "cleanup.json"
+    path = executor.LAB / "evidence" / job_id / "cleanup.json"
     if not path.exists():
         return None
     try:
@@ -208,7 +208,6 @@ def deputy_recon_cancel(job_id: str) -> dict:
         return {"status": "CANCELLING", "job_id": job_id, "workspace_id": job["workspace_id"], "runtime_contract_version": RUNTIME_CONTRACT_VERSION, "pending_executor_registration": True}
     return {"status": "CANCELLING", "job_id": job_id, "workspace_id": job["workspace_id"], "runtime_contract_version": RUNTIME_CONTRACT_VERSION}
 
-@mcp.tool(description="Minimal synthetic MCP-to-child transport diagnostic; returns pong and has no repository or network access.")
 def deputy_child_ping() -> dict:
     child = Path(__file__).parent / "bridge" / "ping_child.py"
     def run_bounded(command, interpreter):
@@ -229,6 +228,11 @@ def deputy_child_ping() -> dict:
     native_name = "cmd.exe" if os.name == "nt" else "/bin/sh"
     return {"runtime_contract_version": RUNTIME_CONTRACT_VERSION, "python_child": run_bounded([sys.executable, "-I", "-S", "-u", str(child)], sys.executable),
             "cmd_child": run_bounded(native, native_name)}
+
+
+if DIAGNOSTICS_ENABLED:
+    mcp.tool(description="Development-only bounded read-only Git probe; enabled only by server-owned configuration.")(deputy_git_probe)
+    mcp.tool(description="Development-only fixed child transport diagnostic; enabled only by server-owned configuration.")(deputy_child_ping)
 
 
 if __name__ == "__main__":
