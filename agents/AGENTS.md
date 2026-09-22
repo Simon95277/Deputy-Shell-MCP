@@ -135,13 +135,30 @@ and it is not a guarantee that provider-visible source is non-sensitive.
 The worker image is digest-pinned.
 
 The server invokes OpenCode in JSON event mode using the `plan` agent and
-`/workspace` as the working directory.
+`/workspace` as the working directory. It server-selects exactly:
 
-The repository code does **not** currently pass explicit model/provider flags
-to OpenCode. Do not claim that a particular model is code-pinned unless the
-implementation is changed to enforce that.
+- provider: `opencode`
+- model: `muse-spark-1.3-contributor-free`
+
+The launch contract carries the exact `opencode/muse-spark-1.3-contributor-free`
+selector through `--model` and also supplies secret-free,
+server-generated `OPENCODE_CONFIG_CONTENT`. The goal is passed as ordinary
+final task content; it is never parsed as OpenCode flags. Project-local
+OpenCode configuration is therefore not allowed to replace the server-owned
+provider/model selection.
+
+The current pinned image exposes the provider/model pair through its built-in
+model catalogue. Runtime event output from the qualified route does not
+always expose provider/model fields, so evidence distinguishes configured
+identity from observed identity and never claims runtime verification when
+those fields are absent.
 
 The provider network boundary is enforced separately by Squid.
+
+The current `opencode` route requires no server-injected credential. No host
+credential environment is forwarded. If the route becomes unavailable or
+requires an unapproved credential/configuration, the job fails closed rather
+than selecting a fallback provider or model.
 
 ## Timeouts and watchdogs
 
@@ -233,7 +250,7 @@ When changing this project:
 Snapshot coherence is a separate contract: `DA-BYTE-COHERENCE-1` requires
 every included source file to have matching pre-copy, candidate, and
 post-copy SHA-256 values before a candidate is published as the master.
-The public runtime marker for this contract is `DA-SURFACE-1`.
+The public runtime marker for this contract is `DA-PROVIDER-1`.
 7. keep cleanup mandatory;
 8. update `docs/ARCHITECTURE.md` and this file when behavior changes;
 9. bump `RUNTIME_CONTRACT_VERSION` when live MCP semantics change;

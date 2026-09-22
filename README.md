@@ -12,6 +12,13 @@ sanitized, read-only snapshot. The live repository is not mounted. Docker
 containment, provider-only egress, bounded lifecycle, and mandatory cleanup
 protect host authority. Its findings are advisory evidence.
 
+Agents uses the server-owned OpenCode contract `opencode` /
+`muse-spark-1.3-contributor-free` through the digest-pinned image. The
+provider/model selector is not caller-configurable, workspace configuration
+cannot replace it, and no provider credential environment is forwarded. When
+OpenCode does not emit identity fields, results report that limitation rather
+than fabricating runtime verification.
+
 The default Agents MCP surface contains the four reconnaissance lifecycle
 tools: `deputy_recon`, `deputy_recon_start`, `deputy_recon_status`, and
 `deputy_recon_cancel`. The fixed `deputy_child_ping` and `deputy_git_probe`

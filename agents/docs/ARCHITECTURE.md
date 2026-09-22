@@ -8,7 +8,7 @@ It is implementation documentation, not an aspirational design document.
 
 Current runtime contract marker:
 
-`DA-SURFACE-1`
+`DA-PROVIDER-1`
 
 Current primary snapshot policy:
 
@@ -122,7 +122,7 @@ Responsibilities:
 Important current constants:
 
 ```text
-RUNTIME_CONTRACT_VERSION = DA-SURFACE-1
+RUNTIME_CONTRACT_VERSION = DA-PROVIDER-1
 MAX_CONCURRENT_RECON = 2
 ```
 
@@ -801,22 +801,31 @@ The image is invoked as:
 
 ```text
 opencode run
+  --model opencode/muse-spark-1.3-contributor-free
   --format json
   --agent plan
   --dir /workspace
   <goal>
 ```
 
-The worker profile `RECON` maps to OpenCode's `plan` agent.
+The worker profile `RECON` maps to OpenCode's `plan` agent. The server-owned
+contract is provider `opencode`, model `muse-spark-1.3-contributor-free`, and
+provider host `opencode.ai`. The launch also supplies a deterministic,
+secret-free `OPENCODE_CONFIG_CONTENT` value containing the same model for the
+OpenCode config layer. The server does not accept provider, model, endpoint,
+config-path, credential, or OpenCode-flag parameters from callers.
 
-Important: the repository code currently does **not** pass explicit
-`--model` or provider selection flags.
+The task goal remains ordinary final task content and is never tokenized into
+argv. Workspace-local `opencode.json` or `.opencode` content may be present in
+the snapshot, but the server-owned inline config and explicit CLI selector
+take precedence for provider/model selection. The container receives no
+credential values or arbitrary host environment.
 
-Therefore a model/provider identity may be an operational property of the
-pinned image/service configuration, but it is not currently enforced by this
-repository's argv.
-
-Do not document a specific model as code-pinned unless that changes.
+OpenCode's JSON events do not guarantee provider/model identity fields. The
+result therefore records configured identity, selection enforcement, and any
+observed identity separately. `verified` is true only when both observed
+fields are present and match; missing observed fields are reported as
+`runtime_identity_observable = false`, not inferred.
 
 ---
 
@@ -1263,7 +1272,7 @@ reconnaissance succeeded.
 Validated run:
 
 ```text
-runtime                         DA-SURFACE-1
+runtime                         DA-PROVIDER-1
 status                          PASS
 snapshot policy                 DA-FAST-2-positive-allowlist-v1
 snapshot file count             625
@@ -1351,8 +1360,17 @@ hardening territory.
 
 ### Provider/model pinning
 
-The OpenCode image is digest-pinned, but model/provider selection is not
-explicitly pinned in the worker argv.
+Provider/model selection is server-owned and explicit in both the OpenCode
+argv and inline config. The fixed provider/model contract is:
+
+- provider: `opencode`
+- model: `muse-spark-1.3-contributor-free`
+- selection source: `SERVER_OWNED`
+- provider host: `opencode.ai`
+
+There is no fallback provider/model. A malformed contract, unavailable route,
+or observed identity mismatch produces a bounded failure instead of a generic
+successful reconnaissance result.
 
 ### Privacy/generalization
 
