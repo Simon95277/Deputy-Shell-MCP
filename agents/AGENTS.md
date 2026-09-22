@@ -219,6 +219,11 @@ When changing this project:
 4. do not expose arbitrary host paths or execution controls;
 5. fail closed on missing capability or containment validation failure;
 6. preserve bounded preparation and child execution;
+
+Snapshot coherence is a separate contract: `DA-BYTE-COHERENCE-1` requires
+every included source file to have matching pre-copy, candidate, and
+post-copy SHA-256 values before a candidate is published as the master.
+The public runtime marker for this contract is `DA-COHERENCE-1`.
 7. keep cleanup mandatory;
 8. update `docs/ARCHITECTURE.md` and this file when behavior changes;
 9. bump `RUNTIME_CONTRACT_VERSION` when live MCP semantics change;

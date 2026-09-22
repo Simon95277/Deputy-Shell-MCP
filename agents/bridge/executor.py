@@ -206,7 +206,7 @@ def _prepare_snapshot(workspace_id, destination, job_id, deadline=None, state=No
     finally:
         SNAPSHOT_LOCK.release()
     manifest = refreshed["manifest"]
-    return manifest, {"refresh_ms": int((time.monotonic() - started) * 1000), "audit": refreshed["audit"]}
+    return manifest, {"refresh_ms": int((time.monotonic() - started) * 1000), "audit": refreshed["audit"], "timings_ms": refreshed["audit"].get("timings_ms", {})}
 
 def _validate_mount_contract(argv, workspace_id, job_snapshot):
     mounts = [argv[i + 1] for i, value in enumerate(argv[:-1]) if value == "--mount"]
@@ -251,7 +251,7 @@ def execute(goal, workspace_id="BRIDGE_LAB", worker_profile="RECON", inject_fail
     manifest=None; stdout=""; stderr=""; exit_code=None; status="CONTAINMENT_ERROR"; parsed={}
     try:
         _prepare_guard(preparation_deadline, state)
-        manifest, snapshot_info = _prepare_snapshot(workspace_id, snap, job, preparation_deadline, state, evdir, started); marks["source_snapshot_refresh_ms"] = snapshot_info.get("refresh_ms", 0); marks["snapshot_ms"]=int((time.monotonic()-started)*1000); (evdir/"snapshot-manifest.json").write_text(json.dumps(manifest,indent=2),encoding="utf-8")
+        manifest, snapshot_info = _prepare_snapshot(workspace_id, snap, job, preparation_deadline, state, evdir, started); marks["source_snapshot_refresh_ms"] = snapshot_info.get("refresh_ms", 0); marks["snapshot_ms"]=int((time.monotonic()-started)*1000); marks.update(snapshot_info.get("timings_ms", {})); (evdir/"snapshot-manifest.json").write_text(json.dumps(manifest,indent=2),encoding="utf-8")
         _prepare_guard(preparation_deadline, state); _preparation_state(evdir, job, workspace_id, state, "NETWORK_CREATE", started)
         t=time.monotonic(); _prep_run([str(DOCKER),"network","create","--internal",res["network"]],preparation_deadline,15); marks["network_create_ms"]=int((time.monotonic()-t)*1000)
         cfg=evdir/"squid.conf"; _write_squid(cfg)
@@ -285,7 +285,7 @@ def execute(goal, workspace_id="BRIDGE_LAB", worker_profile="RECON", inject_fail
         (evdir/"adapter-contract.json").write_text(json.dumps({"network":res["network"],"proxy":res["proxy"],"worker":res["worker"],"squid_image":SQUID_IMAGE,"opencode_image":OPENCODE_IMAGE,"worker_argv":argv,"stdin":"DEVNULL","preparation_budget_ms":PREPARATION_BUDGET_MS,"child_idle_timeout_ms":CHILD_IDLE_TIMEOUT_MS,"active_operation_timeout_ms":ACTIVE_OPERATION_TIMEOUT_MS,"child_absolute_timeout_ms":CHILD_ABSOLUTE_TIMEOUT_MS,"outer_watchdog_ms":OUTER_WATCHDOG_MS},indent=2),encoding="utf-8")
         _preparation_state(evdir, job, workspace_id, state, "WORKER_LAUNCH", started)
         _prepare_guard(preparation_deadline, state)
-        marks["worker_start_ms"]=int((time.monotonic()-started)*1000); state["execution_state"]="RUNNING"; child_started=time.monotonic(); proc=subprocess.Popen(argv,stdout=subprocess.PIPE,stderr=subprocess.PIPE,stdin=subprocess.DEVNULL,text=True)
+        marks["worker_start_ms"]=int((time.monotonic()-started)*1000); state["execution_state"]="RUNNING"; child_started=time.monotonic(); proc=subprocess.Popen(argv,stdout=subprocess.PIPE,stderr=subprocess.PIPE,stdin=subprocess.DEVNULL,text=True,encoding="utf-8",errors="replace")
         state["process"]=proc
         child_budget = 1 if inject_timeout else CHILD_ABSOLUTE_TIMEOUT_SECONDS
         stdout, stderr, timed_out, timeout_reason = _collect_process(proc, state, marks, child_started, min(child_budget, max(1, OUTER_WATCHDOG_SECONDS - int(time.monotonic()-started))))
@@ -301,7 +301,7 @@ def execute(goal, workspace_id="BRIDGE_LAB", worker_profile="RECON", inject_fail
         elif exit_code != 0: status="CLIENT_ERROR"
         else: status="PASS"
         proxy_evidence = _capture_proxy_evidence(res["proxy"], evdir)
-        marks["total_ms"]=int((time.monotonic()-started)*1000); out=result(status,job,workspace_id,parsed["session_id"],parsed["text"],marks["total_ms"],exit_code,manifest,stderr,marks); out["source_snapshot"]={"workspace_id": manifest.get("workspace_id", workspace_id), "policy_version": manifest.get("policy_version"), "created_at": manifest.get("created_at"), "file_count": manifest.get("file_count"), "total_bytes": manifest.get("total_bytes"), "repo": manifest.get("repo", {}), "refresh_ms": marks.get("source_snapshot_refresh_ms", 0)}; out["containment"]=containment; out["evidence"]["squid"] = proxy_evidence; (evdir/"result.json").write_text(json.dumps(out,indent=2),encoding="utf-8"); return out
+        marks["total_ms"]=int((time.monotonic()-started)*1000); out=result(status,job,workspace_id,parsed["session_id"],parsed["text"],marks["total_ms"],exit_code,manifest,stderr,marks); out["source_snapshot"]={"schema": manifest.get("schema"), "workspace_id": manifest.get("workspace_id", workspace_id), "policy_version": manifest.get("policy_version"), "coherence_version": manifest.get("coherence_version"), "coherence_status": manifest.get("coherence_status"), "created_at": manifest.get("created_at"), "file_count": manifest.get("file_count"), "total_bytes": manifest.get("total_bytes"), "repo": manifest.get("repo", {}), "refresh_ms": marks.get("source_snapshot_refresh_ms", 0)}; out["containment"]=containment; out["evidence"]["squid"] = proxy_evidence; (evdir/"result.json").write_text(json.dumps(out,indent=2),encoding="utf-8"); return out
     except PreparationCancelled as e:
         stderr=str(e); marks["total_ms"]=int((time.monotonic()-started)*1000); out=result("CANCELLED",job,workspace_id,None,"",marks["total_ms"],exit_code,manifest or {"schema":"deputy.recon.snapshot.v1","file_count":0,"total_bytes":0},stderr,marks); out["execution_state"]="PREPARING"; out["preparation_phase"] = state.get("preparation_phase"); out["preparation_elapsed_ms"] = marks["total_ms"]; (evdir/"result.json").write_text(json.dumps(out,indent=2),encoding="utf-8"); return out
     except PreparationTimeout as e:
