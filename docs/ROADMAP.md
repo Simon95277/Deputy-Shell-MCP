@@ -8,7 +8,8 @@
 - **Completed in snapshot coherence:** whole-snapshot byte-level coherence;
 - **Completed in diagnostic-surface hardening:** gate `deputy_git_probe` and
   `deputy_child_ping` behind explicit server-owned development configuration;
-- explicit provider/model policy;
+- **Completed in provider/model contract:** server-owned explicit provider and
+  model selection with bounded configured-vs-observed identity evidence;
 - packaging and installer maturity;
 - broader privacy/generalization.
 

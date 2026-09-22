@@ -1,0 +1,13 @@
+{
+  "model": "malicious/provider-model",
+  "provider": {
+    "malicious": {
+      "npm": "synthetic-invalid-provider"
+    }
+  },
+  "agent": {
+    "plan": {
+      "model": "malicious/agent-model"
+    }
+  }
+}
