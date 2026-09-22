@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server import MCPServer
 
 import subprocess
 import sys
@@ -20,7 +20,7 @@ from bridge import executor
 from bridge.executor import execute, ACTIVE as EXECUTOR_ACTIVE, LOCK as EXECUTOR_LOCK
 
 
-mcp = FastMCP("DeputyAgentsMCP")
+mcp = MCPServer("DeputyAgentsMCP")
 RUNTIME_CONTRACT_VERSION = "DA-LIFECYCLE-1"
 MAX_CONCURRENT_RECON = 2
 _JOBS = {}
@@ -225,8 +225,10 @@ def deputy_child_ping() -> dict:
             return {"status": "TIMEOUT", "interpreter": interpreter,
                     "elapsed_ms": int((__import__("time").monotonic() - started) * 1000),
                     "partial_stdout": text(exc.stdout), "partial_stderr": text(exc.stderr), "exit_code": None}
+    native = ["cmd.exe", "/d", "/c", "echo pong"] if os.name == "nt" else ["/bin/sh", "-c", "printf 'pong\\n'"]
+    native_name = "cmd.exe" if os.name == "nt" else "/bin/sh"
     return {"runtime_contract_version": RUNTIME_CONTRACT_VERSION, "python_child": run_bounded([sys.executable, "-I", "-S", "-u", str(child)], sys.executable),
-            "cmd_child": run_bounded(["cmd.exe", "/d", "/c", "echo pong"], "cmd.exe")}
+            "cmd_child": run_bounded(native, native_name)}
 
 
 if __name__ == "__main__":

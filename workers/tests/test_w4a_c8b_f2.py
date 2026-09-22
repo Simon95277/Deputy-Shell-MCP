@@ -7,16 +7,17 @@ from pathlib import Path
 from unittest import mock
 
 from worker_v1 import production
+import config
 from worker_v1.production import ProductionRunEngine
 
 
 class F2InterpreterTests(unittest.TestCase):
     def test_i1_builder_uses_trusted_venv_from_non_venv_process(self):
         command = production._build_production_worker_command(Path(tempfile.mkdtemp()), "internal")
-        self.assertEqual(command[0], str(Path(production.__file__).resolve().parent.parent / ".venv" / "Scripts" / "python.exe"))
+        self.assertEqual(command[0], str(config.TRUSTED_PYTHON))
 
     def test_i2_builder_does_not_use_sys_executable(self):
-        trusted = str(Path(production.__file__).resolve().parent.parent / ".venv" / "Scripts" / "python.exe")
+        trusted = str(config.TRUSTED_PYTHON)
         fake_caller = r"C:\caller-runtime\python.exe"
         with mock.patch.object(production.sys, "executable", fake_caller):
             command = production._build_production_worker_command(Path(tempfile.mkdtemp()), "internal")
@@ -38,7 +39,7 @@ class F2InterpreterTests(unittest.TestCase):
             self.assertEqual(production._build_production_worker_command(Path("."), "internal"), replacement)
 
     def test_i6_normal_builder_returns_trusted_interpreter_after_patch_scope(self):
-        trusted = str(Path(production.__file__).resolve().parent.parent / ".venv" / "Scripts" / "python.exe")
+        trusted = str(config.TRUSTED_PYTHON)
         with mock.patch.object(production, "_build_production_worker_command", return_value=["test-python"]):
             pass
         self.assertEqual(production._build_production_worker_command(Path(tempfile.mkdtemp()), "internal")[0], trusted)
