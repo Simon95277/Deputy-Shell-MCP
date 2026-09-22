@@ -5,7 +5,7 @@
 - **Completed in lifecycle hardening:** durable job state across MCP restart;
 - **Completed in lifecycle hardening:** early cancellation registration race;
 - **Completed in lifecycle hardening:** startup orphan/resource reconciliation;
-- whole-snapshot byte-level coherence;
+- **Completed in qualification portability:** whole-snapshot byte-level coherence;
 - remove or gate `deputy_git_probe`;
 - explicit provider/model policy;
 - packaging and installer maturity;
