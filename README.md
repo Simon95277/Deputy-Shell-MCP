@@ -37,3 +37,11 @@ From `agents/`, install the project dependencies and run
 project dependencies, configure the server-owned `DEPUTYWORKERS_*` paths, and
 run the same command. Runtime roots, snapshots, logs, and virtual environments
 are ignored and must not be committed.
+
+Qualification portability uses clean environments and the public dependency
+metadata. Both runtimes target the official MCP v2 API and qualify against
+MCP 2.2.0. Agents' child ping uses Python everywhere and a fixed native
+diagnostic (`cmd.exe` on Windows, a server-owned POSIX equivalent elsewhere);
+Workers' subprocess interpreter is server-owned and defaults to the trusted
+server interpreter. Windows process-identity guarantees remain physical-host
+qualifications and are not fabricated on hosts that cannot provide them.

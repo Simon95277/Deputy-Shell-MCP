@@ -7,3 +7,9 @@ name = "deputy-shell-agents-mcp"
 version = "1.0.0"
 requires-python = ">=3.10"
 dependencies = ["mcp>=2,<3"]
+
+[tool.setuptools]
+py-modules = ["server", "config", "snapshot"]
+
+[tool.setuptools.packages.find]
+include = ["bridge*"]

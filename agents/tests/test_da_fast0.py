@@ -1,4 +1,5 @@
 import json
+import asyncio
 import tempfile
 import subprocess
 import sys
@@ -13,6 +14,15 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class DeputyAgentsContractTests(unittest.TestCase):
+    def test_mcp_v2_runtime_and_server_registration(self):
+        import importlib.metadata
+        from mcp.server import MCPServer
+        import server
+        self.assertTrue(importlib.metadata.version("mcp").startswith("2."))
+        self.assertIsInstance(server.mcp, MCPServer)
+        names = {tool.name for tool in asyncio.run(server.mcp.list_tools())}
+        self.assertEqual(names, {"deputy_git_probe", "deputy_recon", "deputy_recon_start", "deputy_recon_status", "deputy_recon_cancel", "deputy_child_ping"})
+
     def test_server_compiles(self):
         subprocess.run([sys.executable, "-m", "py_compile", str(ROOT / "server.py")], check=True)
 
