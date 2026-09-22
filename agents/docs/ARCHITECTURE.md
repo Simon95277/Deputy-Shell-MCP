@@ -8,11 +8,17 @@ It is implementation documentation, not an aspirational design document.
 
 Current runtime contract marker:
 
-`DA-LIFECYCLE-1`
+`DA-COHERENCE-1`
 
 Current primary snapshot policy:
 
 `DA-FAST-2-positive-allowlist-v1`
+
+Snapshot generation also uses `DA-BYTE-COHERENCE-1`. A private candidate is
+qualified only after all included files are hashed before copying, in the
+candidate, and after copying from the live source. Only a fully qualified
+candidate is promoted to the master; a failed refresh does not fall back to a
+stale master for the requesting job.
 
 The short model-facing rules live in the repository root
 [`AGENTS.md`](../AGENTS.md).
@@ -116,7 +122,7 @@ Responsibilities:
 Important current constants:
 
 ```text
-RUNTIME_CONTRACT_VERSION = DA-LIFECYCLE-1
+RUNTIME_CONTRACT_VERSION = DA-COHERENCE-1
 MAX_CONCURRENT_RECON = 2
 ```
 
@@ -1254,7 +1260,7 @@ reconnaissance succeeded.
 Validated run:
 
 ```text
-runtime                         DA-LIFECYCLE-1
+runtime                         DA-COHERENCE-1
 status                          PASS
 snapshot policy                 DA-FAST-2-positive-allowlist-v1
 snapshot file count             625

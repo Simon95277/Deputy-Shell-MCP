@@ -21,7 +21,7 @@ from bridge.executor import execute, ACTIVE as EXECUTOR_ACTIVE, LOCK as EXECUTOR
 
 
 mcp = MCPServer("DeputyAgentsMCP")
-RUNTIME_CONTRACT_VERSION = "DA-LIFECYCLE-1"
+RUNTIME_CONTRACT_VERSION = "DA-COHERENCE-1"
 MAX_CONCURRENT_RECON = 2
 _JOBS = {}
 _JOBS_LOCK = threading.Lock()
