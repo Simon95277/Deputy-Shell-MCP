@@ -203,7 +203,7 @@ def _looks_text(path: Path) -> bool:
 
 
 COHERENCE_VERSION = "DA-BYTE-COHERENCE-1"
-RUNTIME_CONTRACT_VERSION = "DA-COHERENCE-1"
+RUNTIME_CONTRACT_VERSION = "DA-SURFACE-1"
 
 
 def _file_record(rel, source, candidate, classification):

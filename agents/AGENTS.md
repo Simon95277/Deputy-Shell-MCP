@@ -48,13 +48,23 @@ The public server hardcodes the worker profile to `RECON`.
 surface. Do not use it for substantial long-running work when the async
 lifecycle is available.
 
-Diagnostic-only tools currently exposed:
+The default production MCP surface contains exactly these four tools:
+
+- `deputy_recon`
+- `deputy_recon_start`
+- `deputy_recon_status`
+- `deputy_recon_cancel`
+
+Development-only diagnostics are registered only when the server owner starts
+the process with `DEPUTYAGENTS_ENABLE_DIAGNOSTICS=1`:
 
 - `deputy_child_ping()`
 - `deputy_git_probe()`
 
-They are not reconnaissance workers and must not be used as general-purpose
-execution surfaces.
+Missing, empty, or any value other than exactly `1` disables them. The switch
+is not an MCP request parameter and cannot be enabled through a goal,
+workspace ID, or job payload. These tools are not reconnaissance workers and
+must not be used as general-purpose execution surfaces.
 
 Maximum concurrent async reconnaissance jobs: **2**.
 
@@ -204,7 +214,7 @@ Do not collapse these into a generic success/failure state.
 Treat these as known implementation facts, not invitations to refactor them
 without a milestone:
 
-- `deputy_git_probe` is temporary diagnostic surface;
+- diagnostic tools are intentionally development-only and server-enabled;
 - host paths are server-owned and configurable through `DEPUTYAGENTS_*` environment variables;
 - the OpenCode writable-state tmpfs set may need future expansion;
 - packaging/installer ergonomics for other environments are not yet complete.
@@ -223,7 +233,7 @@ When changing this project:
 Snapshot coherence is a separate contract: `DA-BYTE-COHERENCE-1` requires
 every included source file to have matching pre-copy, candidate, and
 post-copy SHA-256 values before a candidate is published as the master.
-The public runtime marker for this contract is `DA-COHERENCE-1`.
+The public runtime marker for this contract is `DA-SURFACE-1`.
 7. keep cleanup mandatory;
 8. update `docs/ARCHITECTURE.md` and this file when behavior changes;
 9. bump `RUNTIME_CONTRACT_VERSION` when live MCP semantics change;

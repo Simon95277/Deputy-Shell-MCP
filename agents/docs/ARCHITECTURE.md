@@ -8,7 +8,7 @@ It is implementation documentation, not an aspirational design document.
 
 Current runtime contract marker:
 
-`DA-COHERENCE-1`
+`DA-SURFACE-1`
 
 Current primary snapshot policy:
 
@@ -122,7 +122,7 @@ Responsibilities:
 Important current constants:
 
 ```text
-RUNTIME_CONTRACT_VERSION = DA-COHERENCE-1
+RUNTIME_CONTRACT_VERSION = DA-SURFACE-1
 MAX_CONCURRENT_RECON = 2
 ```
 
@@ -311,9 +311,11 @@ contract version.
 For substantial work, prefer the async lifecycle because long model sessions
 can exceed normal MCP request durations.
 
-### 4.5 `deputy_child_ping()`
+### 4.5 Development diagnostic: `deputy_child_ping()`
 
-Diagnostic-only tool.
+Development-only diagnostic tool. It is not registered in the default
+production MCP surface. The server owner must set
+`DEPUTYAGENTS_ENABLE_DIAGNOSTICS=1` before process startup.
 
 It verifies MCP -> child-process transport through two synthetic children:
 
@@ -333,9 +335,11 @@ Both are bounded to 15 seconds.
 
 This tool has no repository or provider purpose.
 
-### 4.6 `deputy_git_probe()`
+### 4.6 Development diagnostic: `deputy_git_probe()`
 
-Temporary diagnostic-only tool introduced to diagnose MCP-hosted Git behavior.
+Development-only diagnostic tool introduced to diagnose MCP-hosted Git
+behavior. It is not registered in the default production MCP surface and is
+enabled only by the server-owned `DEPUTYAGENTS_ENABLE_DIAGNOSTICS=1` setting.
 
 It has no public parameters.
 
@@ -346,8 +350,7 @@ three modes:
 2. direct sanitized environment;
 3. async-thread production environment.
 
-It exists for diagnostics and is not part of the intended long-term product
-surface.
+It exists for diagnostics and is not part of the production product surface.
 
 ---
 
@@ -1260,7 +1263,7 @@ reconnaissance succeeded.
 Validated run:
 
 ```text
-runtime                         DA-COHERENCE-1
+runtime                         DA-SURFACE-1
 status                          PASS
 snapshot policy                 DA-FAST-2-positive-allowlist-v1
 snapshot file count             625
@@ -1320,8 +1323,12 @@ idempotent.
 
 ### Diagnostic tool exposure
 
-`deputy_git_probe` is currently public MCP surface even though it is
-diagnostic-only.
+The default production MCP surface contains exactly four tools: the legacy
+synchronous `deputy_recon` compatibility tool and the three asynchronous
+lifecycle tools. `deputy_child_ping` and `deputy_git_probe` remain available
+for server-owner development diagnostics only, enabled by the exact
+`DEPUTYAGENTS_ENABLE_DIAGNOSTICS=1` process setting. They are not caller-
+selectable and are not part of production authority.
 
 ### Path configuration and packaging
 

@@ -21,7 +21,7 @@ class DeputyAgentsContractTests(unittest.TestCase):
         self.assertTrue(importlib.metadata.version("mcp").startswith("2."))
         self.assertIsInstance(server.mcp, MCPServer)
         names = {tool.name for tool in asyncio.run(server.mcp.list_tools())}
-        self.assertEqual(names, {"deputy_git_probe", "deputy_recon", "deputy_recon_start", "deputy_recon_status", "deputy_recon_cancel", "deputy_child_ping"})
+        self.assertEqual(names, {"deputy_recon", "deputy_recon_start", "deputy_recon_status", "deputy_recon_cancel"})
 
     def test_server_compiles(self):
         subprocess.run([sys.executable, "-m", "py_compile", str(ROOT / "server.py")], check=True)
@@ -29,7 +29,7 @@ class DeputyAgentsContractTests(unittest.TestCase):
     def test_mcp_child_ping_returns_pong(self):
         import server
         result = server.deputy_child_ping()
-        self.assertEqual(result["runtime_contract_version"], "DA-COHERENCE-1")
+        self.assertEqual(result["runtime_contract_version"], "DA-SURFACE-1")
         self.assertEqual(result["python_child"]["status"], "PASS")
         self.assertEqual(result["python_child"]["stdout"].strip(), "pong")
         self.assertEqual(result["python_child"]["exit_code"], 0)
@@ -239,7 +239,7 @@ class DeputyAgentsContractTests(unittest.TestCase):
 
     def test_async_runtime_and_lifecycle_tools_are_exposed(self):
         import server
-        self.assertEqual(server.RUNTIME_CONTRACT_VERSION, "DA-COHERENCE-1")
+        self.assertEqual(server.RUNTIME_CONTRACT_VERSION, "DA-SURFACE-1")
         for name in ("deputy_recon_start", "deputy_recon_status", "deputy_recon_cancel"):
             self.assertTrue(hasattr(server, name))
 
