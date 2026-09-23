@@ -115,7 +115,10 @@ def prepare_fixture(args: argparse.Namespace) -> None:
             fail("synthetic Git fixture initialization failed")
 
     (sdk / "platform-tools").mkdir(parents=True)
-    (sdk / "platform-tools" / ("adb.exe" if os.name == "nt" else "adb")).write_bytes(b"synthetic placeholder; never executable")
+    # Both spellings are inert preflight fixtures: production's SDK contract
+    # checks adb.exe, while POSIX config also names adb. Tests never execute them.
+    for adb_name in ("adb.exe", "adb"):
+        (sdk / "platform-tools" / adb_name).write_bytes(b"synthetic placeholder; never executable")
     for name in ("platforms", "build-tools", "cmdline-tools"):
         (sdk / name).mkdir()
     docker_stub.parent.mkdir(parents=True, exist_ok=True)

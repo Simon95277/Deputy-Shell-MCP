@@ -13,9 +13,11 @@ organization settings must continue to cap effective token permissions; those
 external settings are not controlled by workflow source.
 
 Windows test jobs create an inert synthetic repository, a placeholder SDK, and
-a Docker-path placeholder used only by read-only preflight checks. Tests do
-not execute Gradle, ADB, Docker, or provider inference. Linux runs source tests
-against the same style of synthetic fixture. The Python 3.10 Windows job is
+a Docker-path placeholder used only by read-only preflight checks. The SDK
+fixture includes inert `adb` and `adb.exe` path placeholders for platform path
+contracts; neither is executed. Tests do not execute Gradle, ADB, Docker, or
+provider inference. Linux runs source tests against the same style of synthetic
+fixture. The Python 3.10 Windows job is
 the deterministic dependency qualification; Linux is a portability and
 compatibility gate.
 
