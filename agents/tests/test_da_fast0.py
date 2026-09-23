@@ -29,7 +29,7 @@ class DeputyAgentsContractTests(unittest.TestCase):
     def test_mcp_child_ping_returns_pong(self):
         import server
         result = server.deputy_child_ping()
-        self.assertEqual(result["runtime_contract_version"], "DA-PACKAGING-1")
+        self.assertEqual(result["runtime_contract_version"], "DA-PRIVACY-1")
         self.assertEqual(result["python_child"]["status"], "PASS")
         self.assertEqual(result["python_child"]["stdout"].strip(), "pong")
         self.assertEqual(result["python_child"]["exit_code"], 0)
@@ -58,9 +58,9 @@ class DeputyAgentsContractTests(unittest.TestCase):
 
     def test_result_metadata_uses_manifest_policy_and_hides_host_path(self):
         from bridge.core import result
-        manifest = {"schema": "x", "policy_version": "DA-FAST-2-positive-allowlist-v1", "workspace_id": "DEPUTY_SHELL", "created_at": "t", "file_count": 625, "total_bytes": 19507861, "repo": {"branch": "b", "head": "h", "dirty": True}}
+        manifest = {"schema": "x", "policy_version": "DA-PRIVACY-1-positive-policy-v1", "workspace_id": "DEPUTY_SHELL", "created_at": "t", "file_count": 625, "total_bytes": 19507861, "repo": {"branch": "b", "head": "h", "dirty": True}}
         out = result("PASS", "j", "DEPUTY_SHELL", "s", "text", 1, 0, manifest)
-        self.assertEqual(out["snapshot"]["policy_version"], "DA-FAST-2-positive-allowlist-v1")
+        self.assertEqual(out["snapshot"]["policy_version"], "DA-PRIVACY-1-positive-policy-v1")
         self.assertEqual(out["snapshot"]["workspace_id"], "DEPUTY_SHELL")
         self.assertNotIn("repo_root_verified", str(out))
 
@@ -84,7 +84,7 @@ class DeputyAgentsContractTests(unittest.TestCase):
 
     def test_timeout_is_server_owned_and_timed(self):
         text = (ROOT / "bridge" / "executor.py").read_text(encoding="utf-8")
-        self.assertIn("PREPARATION_BUDGET_MS = 15000", text)
+        self.assertIn("PREPARATION_BUDGET_MS = 30000", text)
         self.assertNotIn("CHILD_EXECUTION_BUDGET_MS", text)
         self.assertNotIn("child_execution_budget_ms", text)
         self.assertNotIn("timeout_seconds", text[text.index("def execute"):text.index("def execute") + 180])
@@ -166,8 +166,9 @@ class DeputyAgentsContractTests(unittest.TestCase):
     def test_deputy_snapshot_refresh_is_server_owned_and_locked(self):
         text = (ROOT / "bridge" / "executor.py").read_text(encoding="utf-8")
         self.assertIn("SNAPSHOT_LOCK = threading.Lock()", text)
-        self.assertIn("create_snapshot()", text)
-        self.assertIn("shutil.copytree(SNAPSHOT_ROOT, destination)", text)
+        self.assertIn("create_snapshot(deadline=deadline", text)
+        self.assertIn("job_destination=destination", text)
+        self.assertNotIn("shutil.copytree(SNAPSHOT_ROOT, destination)", text)
         self.assertNotIn("refresh_snapshot", text)
         self.assertNotIn("snapshot_path", (ROOT / "server.py").read_text(encoding="utf-8"))
 
@@ -175,10 +176,10 @@ class DeputyAgentsContractTests(unittest.TestCase):
         from bridge import executor
         manifest = {"schema": "x", "repo": {"branch": "b", "head": "h", "dirty": False}}
         with patch.object(executor, "create_snapshot", return_value={"manifest": manifest, "audit": {}}) as refresh, \
-             patch.object(executor.shutil, "copytree") as copy, \
              patch.object(executor, "build_snapshot", return_value=manifest) as build:
             executor._prepare_snapshot("DEPUTY_SHELL", ROOT / "tmp-job", "a" * 32)
-            refresh.assert_called_once(); copy.assert_called_once()
+            refresh.assert_called_once()
+            self.assertEqual(refresh.call_args.kwargs["job_destination"], ROOT / "tmp-job")
             executor._prepare_snapshot("BRIDGE_LAB", ROOT / "tmp-job-bridge", "b" * 32)
             build.assert_called_once()
 
@@ -239,7 +240,7 @@ class DeputyAgentsContractTests(unittest.TestCase):
 
     def test_async_runtime_and_lifecycle_tools_are_exposed(self):
         import server
-        self.assertEqual(server.RUNTIME_CONTRACT_VERSION, "DA-PACKAGING-1")
+        self.assertEqual(server.RUNTIME_CONTRACT_VERSION, "DA-PRIVACY-1")
         for name in ("deputy_recon_start", "deputy_recon_status", "deputy_recon_cancel"):
             self.assertTrue(hasattr(server, name))
 

@@ -4,6 +4,7 @@ import hashlib, json, os, re, shutil, subprocess, tempfile, time, uuid
 from pathlib import Path
 from config import BRIDGE_FIXTURES, DEPUTY_SHELL_ROOT, DOCKER_EXE
 from .provider_contract import MODEL_SELECTOR, PROVIDER_HOST, evidence, validate_contract, inline_config_content
+from privacy import public_error_code
 
 LAB = BRIDGE_FIXTURES.parent
 DOCKER = DOCKER_EXE
@@ -73,6 +74,6 @@ def build_argv(job_dir, goal):
     return [str(DOCKER),"run","--rm","--network","REQUIRED_NETWORK","--read-only","--cap-drop=ALL","--security-opt","no-new-privileges","--pids-limit","128","--memory","1g","--cpus","2","--tmpfs","/tmp:rw,nosuid,nodev,size=64m","--tmpfs","/root/.cache:rw,nosuid,nodev,size=128m","--tmpfs","/root/.local/share/opencode:rw,nosuid,nodev,size=128m","--tmpfs","/root/.config/opencode:rw,nosuid,nodev,size=64m","--mount",f"type=bind,source={job_dir},target=/workspace,readonly","-e","HTTP_PROXY=http://PROXY:3128","-e","HTTPS_PROXY=http://PROXY:3128","-e","NO_PROXY=localhost,127.0.0.1,::1","-e",f"OPENCODE_CONFIG_CONTENT={inline_config_content()}",OPENCODE_IMAGE,"run","--model",MODEL_SELECTOR,"--format","json","--agent","plan","--dir","/workspace",goal]
 
 def result(status,job_id,workspace,session,text,duration,exit_code,manifest,stderr="",timings=None,inference_contract=None):
-    out={"status":status,"job_id":job_id,"workspace_id":workspace,"worker_profile":"RECON","session_id":session,"text":text[:8192],"duration_ms":duration,"exit_code":exit_code,"snapshot":{"schema":manifest["schema"],"policy_version":manifest.get("policy_version"),"workspace_id":manifest.get("workspace_id", workspace),"file_count":manifest["file_count"],"total_bytes":manifest["total_bytes"]},"evidence":{"stderr_summary":stderr[:2048],"network_policy":"PROVIDER_ONLY","phase_timings_ms":timings or {}}}
+    out={"status":status,"job_id":job_id,"workspace_id":workspace,"worker_profile":"RECON","session_id":session,"text":text[:8192],"duration_ms":duration,"exit_code":exit_code,"snapshot":{"schema":manifest["schema"],"policy_version":manifest.get("policy_version"),"workspace_id":manifest.get("workspace_id", workspace),"file_count":manifest["file_count"],"total_bytes":manifest["total_bytes"]},"evidence":{"stderr_summary":"CHILD_STDERR_PRESENT" if stderr else "","network_policy":"PROVIDER_ONLY","phase_timings_ms":timings or {}}}
     out["inference_contract"]=inference_contract or evidence()
     return out

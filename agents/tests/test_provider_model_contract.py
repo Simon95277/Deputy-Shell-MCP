@@ -172,12 +172,12 @@ class ProviderModelContractTests(unittest.TestCase):
 
     def test_29_runtime_marker_is_provider_contract(self):
         import server
-        self.assertEqual(server.RUNTIME_CONTRACT_VERSION, "DA-PACKAGING-1")
+        self.assertEqual(server.RUNTIME_CONTRACT_VERSION, "DA-PRIVACY-1")
 
     def test_30_coherence_and_snapshot_policy_markers_unchanged(self):
         import snapshot
         self.assertEqual(snapshot.COHERENCE_VERSION, "DA-BYTE-COHERENCE-1")
-        self.assertEqual(snapshot.POLICY_VERSION, "DA-FAST-2-positive-allowlist-v1")
+        self.assertEqual(snapshot.POLICY_VERSION, "DA-PRIVACY-1-positive-policy-v1")
 
 
 if __name__ == "__main__":

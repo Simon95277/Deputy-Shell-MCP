@@ -8,17 +8,27 @@ It is implementation documentation, not an aspirational design document.
 
 Current runtime contract marker:
 
-`DA-PACKAGING-1`
+`DA-PRIVACY-1`
 
 Current primary snapshot policy:
 
-`DA-FAST-2-positive-allowlist-v1`
+`DA-PRIVACY-1-positive-policy-v1`
 
 Snapshot generation also uses `DA-BYTE-COHERENCE-1`. A private candidate is
 qualified only after all included files are hashed before copying, in the
 candidate, and after copying from the live source. Only a fully qualified
 candidate is promoted to the master; a failed refresh does not fall back to a
 stale master for the requesting job.
+
+The source selection is represented by the server-owned
+`deputy.agents.source-policy.v1` contract. A deployment owner may configure a
+bounded relative-path policy through `DEPUTYAGENTS_SOURCE_POLICY_JSON`; no MCP
+argument or goal text can select or alter it. The default Deputy Shell policy
+retains the existing allowlist and approved-untracked set. Hard exclusions for
+reparse points, sensitive filenames, binary content, and content-secret
+findings remain implementation-owned. Secret scanning applies to candidate
+bytes before source-after hashing, coherence approval, publication, network
+creation, or worker launch.
 
 The short model-facing rules live in the repository root
 [`AGENTS.md`](../AGENTS.md).
@@ -122,7 +132,7 @@ Responsibilities:
 Important current constants:
 
 ```text
-RUNTIME_CONTRACT_VERSION = DA-PACKAGING-1
+RUNTIME_CONTRACT_VERSION = DA-PRIVACY-1
 MAX_CONCURRENT_RECON = 2
 ```
 
@@ -498,7 +508,7 @@ repository path.
 
 Current policy version:
 
-`DA-FAST-2-positive-allowlist-v1`
+`DA-PRIVACY-1-positive-policy-v1`
 
 The policy is positive-allowlist based.
 
@@ -890,7 +900,7 @@ fresh-recon gate was closed.
 
 Preparation has a hard budget of:
 
-`15000 ms`
+`30000 ms`
 
 The budget begins at executor start and includes snapshot work plus Docker
 network/proxy setup up to worker launch.
@@ -926,11 +936,15 @@ timeout_reason = PREPARATION_TIMEOUT
 execution_state = PREPARING
 ```
 
-Terminal reporting can occur slightly after the nominal 15-second boundary
+Terminal reporting can occur slightly after the nominal 30-second boundary
 because exception unwinding/evidence/cleanup have their own bounded overhead.
 
-The 15-second value is a worker-launch preparation boundary, not a promise that
-the entire function returns by exactly 15.000 seconds.
+The 30-second value is a worker-launch preparation boundary, not a promise that
+the entire function returns by exactly 30.000 seconds. Candidate snapshots,
+job-copy bytes, coherence evidence, and privacy audit evidence are prepared
+before the final deadline guard. Only then is the shared last-known-good
+snapshot replaced; a preparation timeout before that publication preserves the
+previous generation. Per-stage timings are stored in bounded local evidence.
 
 ---
 
@@ -1086,7 +1100,8 @@ is not caller-controlled. Runtime roots default outside the installed package:
 on POSIX, or the platform application-support directory on macOS.
 `DEPUTYAGENTS_EVIDENCE_ROOT`, `DEPUTYAGENTS_JOB_STATE_ROOT`, and
 `DEPUTYAGENTS_SNAPSHOT_ROOT` are deployment configuration overrides, not MCP
-caller parameters.
+caller parameters. `request.json` stores a goal SHA-256 and byte length rather
+than the raw caller goal.
 
 Typical files can include:
 
@@ -1192,17 +1207,15 @@ It is not a confidentiality guarantee against the external inference provider.
 Provider retention/training/privacy behavior is external to this server and
 must not be invented by a model reading this repository.
 
-### 18.3 Secret filter limitations
+### 18.3 Secret and PII detection limits
 
-Filename/path filtering is not equivalent to content scanning.
-
-A source file with an innocuous filename can still contain sensitive data.
-
-The current policy is appropriate only for the explicitly accepted internal
-use case and threat model.
-
-Public/customer use requires additional privacy review and likely stronger
-policy controls.
+The candidate generation is scanned locally for the documented high-confidence
+credential patterns before coherence approval and provider setup. The scan
+records only relative paths and detector IDs for blocking findings; matched
+values are not persisted or returned. It is deterministic but is not a
+complete credential detector. Email and personal absolute-path indicators are
+separate local warnings, not comprehensive PII detection and not blanket
+blocking. Provider-exposable source remains externally exposed by design.
 
 ---
 
@@ -1275,9 +1288,9 @@ reconnaissance succeeded.
 Validated run:
 
 ```text
-runtime                         DA-PACKAGING-1
+runtime                         DA-PRIVACY-1
 status                          PASS
-snapshot policy                 DA-FAST-2-positive-allowlist-v1
+snapshot policy                 DA-PRIVACY-1-positive-policy-v1
 snapshot file count             625
 snapshot bytes                  19,507,861
 snapshot dirty                  true
@@ -1377,10 +1390,19 @@ successful reconnaissance result.
 
 ### Privacy/generalization
 
-The current source policy is designed around a specific trusted owner's
-internal repository and accepted provider exposure.
+The server-owned `deputy.agents.source-policy.v1` configuration can describe a
+bounded relative-path policy for one configured repository. The built-in
+`DEPUTY_SHELL_DEFAULT_V1` policy preserves the previously qualified source set;
+MCP callers cannot select a policy or repository path. Candidate bytes are
+checked by the deterministic high-confidence secret detector before coherence
+approval, publication, network creation, or child launch. PII indicators are
+local warnings, not comprehensive detection or blanket blocking.
 
-It is not yet a generalized multi-user privacy policy.
+The supported deployment remains `TRUSTED_SINGLE_OPERATOR_V1`. The machine
+owner and deployment configuration are trusted; MCP callers do not receive
+host authority. This server does not claim hostile multi-user, tenant,
+per-user filesystem, or per-user credential isolation. Provider-exposable
+source is externally exposed by design, and model output may quote that source.
 
 ---
 

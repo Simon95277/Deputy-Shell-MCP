@@ -81,12 +81,13 @@ The server:
 5. mounts only that per-job snapshot at `/workspace`, read-only;
 6. launches the contained OpenCode worker.
 
-The live Deputy Shell repository and the shared master snapshot must never be
-mounted into the worker.
+The live configured source repository and shared master snapshot must never be
+mounted into the worker. The server-owned `deputy.agents.source-policy.v1`
+selects bounded relative paths; no caller can provide or alter this policy.
 
 The current snapshot policy is:
 
-`DA-FAST-2-positive-allowlist-v1`
+`DA-PRIVACY-1-positive-policy-v1`
 
 Read `docs/ARCHITECTURE.md` for the exact allowlist, deny rules, approved
 untracked paths, size limits, Git-state capture, and drift checks.
@@ -250,7 +251,9 @@ When changing this project:
 Snapshot coherence is a separate contract: `DA-BYTE-COHERENCE-1` requires
 every included source file to have matching pre-copy, candidate, and
 post-copy SHA-256 values before a candidate is published as the master.
-The public runtime marker for this contract is `DA-PACKAGING-1`.
+The `DA-PRIVACY-1` runtime also scans candidate bytes for documented
+high-confidence credential forms before provider setup. Deployment is
+`TRUSTED_SINGLE_OPERATOR_V1`, not a hostile multi-tenant boundary.
 7. keep cleanup mandatory;
 8. update `docs/ARCHITECTURE.md` and this file when behavior changes;
 9. bump `RUNTIME_CONTRACT_VERSION` when live MCP semantics change;
@@ -262,7 +265,7 @@ The public runtime marker for this contract is `DA-PACKAGING-1`.
 A real DEPUTY_SHELL async reconnaissance was successfully validated against a
 fresh dirty working tree with:
 
-- policy `DA-FAST-2-positive-allowlist-v1`
+- policy `DA-PRIVACY-1-positive-policy-v1`
 - 625 files
 - 19,507,861 bytes
 - fresh snapshot refresh ~6.03 s

@@ -17,7 +17,7 @@ Homepage = "https://deputyshell.com"
 Repository = "https://github.com/Simon95277/Deputy-Shell-MCP"
 
 [tool.setuptools]
-py-modules = ["server", "config", "snapshot", "preflight"]
+py-modules = ["server", "config", "snapshot", "preflight", "source_policy", "privacy"]
 include-package-data = false
 
 [tool.setuptools.packages.find]

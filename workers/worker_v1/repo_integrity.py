@@ -5,11 +5,12 @@ import json
 import subprocess
 import time
 from pathlib import Path
+from .privacy import child_environment
 
 
 def _git(root: Path, *args: str) -> bytes:
     p = subprocess.run(["git", *args], cwd=str(root), stdout=subprocess.PIPE,
-                       stderr=subprocess.PIPE, check=True, shell=False)
+                       stderr=subprocess.PIPE, check=True, shell=False, env=child_environment())
     return p.stdout
 
 
@@ -64,7 +65,7 @@ def capture_snapshot(repo_root: str | Path) -> dict:
         "head": _git(root, "rev-parse", "HEAD").decode().strip(),
         "branch": _git(root, "branch", "--show-current").decode().strip(),
         "upstream": _git(root, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}").decode().strip()
-        if subprocess.run(["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"], cwd=str(root), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=False).returncode == 0 else None,
+        if subprocess.run(["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"], cwd=str(root), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=False, env=child_environment()).returncode == 0 else None,
         "tracked_delta": dirty,
         "staged_paths": sorted({line.rsplit("\t", 1)[-1] for line in staged_raw.decode("utf-8", "surrogateescape").splitlines() if line}),
         "index_sha256": hashlib.sha256(index_entries.encode("utf-8", "surrogateescape")).hexdigest(),

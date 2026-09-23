@@ -10,6 +10,7 @@ import re
 from pathlib import Path
 from .capabilities import APPROVED_GRADLE_TASKS, APPROVED_VERIFIERS, APPROVED_JUNIT_REPORTS, APPROVED_ARTIFACTS, APPROVED_ACTIVITIES, APPROVED_INSTRUMENTATION, APPROVED_DUMPSYS
 from .process import evidence as process_evidence
+from .privacy import child_environment
 from config import ADB_EXE, ANDROID_SDK_ROOT, DEPUTY_SHELL_ROOT, TRUSTED_PYTHON
 
 REPO_ROOT = DEPUTY_SHELL_ROOT.resolve()
@@ -38,7 +39,7 @@ def _adb_run(args, evidence_dir):
     if adb is None: return {"status":"BLOCKED","reason":"TRUSTED_ADB_UNAVAILABLE"}
     started=time.time(); evidence_dir=Path(evidence_dir); evidence_dir.mkdir(parents=True,exist_ok=True)
     try:
-        p=subprocess.Popen([str(adb),*args],cwd=str(REPO_ROOT),env=os.environ.copy(),shell=False,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,encoding="utf-8",errors="replace")
+        p=subprocess.Popen([str(adb),*args],cwd=str(REPO_ROOT),env=child_environment(),shell=False,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,encoding="utf-8",errors="replace")
         stdout,stderr=p.communicate()
     except OSError as exc: return {"status":"BLOCKED","reason":"ADB_START_FAILED","error":str(exc)[:512]}
     ended=time.time(); (evidence_dir/"adb.stdout.log").write_text(stdout,encoding="utf-8"); (evidence_dir/"adb.stderr.log").write_text(stderr,encoding="utf-8")
@@ -170,7 +171,7 @@ def _safe_path(value: str) -> tuple[Path | None, str | None]:
 
 
 def _git(args: list[str]) -> dict:
-    p = subprocess.run(["git", *args], cwd=str(REPO_ROOT), capture_output=True, text=True, encoding="utf-8", errors="replace", shell=False)
+    p = subprocess.run(["git", *args], cwd=str(REPO_ROOT), env=child_environment(), capture_output=True, text=True, encoding="utf-8", errors="replace", shell=False)
     return {"exit_code": p.returncode, "stdout": p.stdout[:MAX_OUTPUT], "stderr": p.stderr[:MAX_OUTPUT]}
 
 
@@ -231,9 +232,7 @@ def gradle(params: dict, evidence_dir: Path) -> dict:
     started = time.time()
     command = [str(GRADLE_WRAPPER), task]
     try:
-        environment = os.environ.copy()
-        environment["ANDROID_HOME"] = str(sdk)
-        environment["ANDROID_SDK_ROOT"] = str(sdk)
+        environment = child_environment(extra={"ANDROID_HOME": str(sdk), "ANDROID_SDK_ROOT": str(sdk)})
         p = subprocess.Popen(command, cwd=str(REPO_ROOT), env=environment, shell=False,
                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                              encoding="utf-8", errors="replace")
@@ -268,7 +267,7 @@ def verifier(params: dict, evidence_dir: Path) -> dict:
     started = time.time()
     command = [str(TRUSTED_PYTHON), str(script)]
     try:
-        p = subprocess.Popen(command, cwd=str(REPO_ROOT), env=os.environ.copy(), shell=False,
+        p = subprocess.Popen(command, cwd=str(REPO_ROOT), env=child_environment(), shell=False,
                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                              encoding="utf-8", errors="replace")
         stdout, stderr = p.communicate()

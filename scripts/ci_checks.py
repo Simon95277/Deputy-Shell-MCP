@@ -34,7 +34,7 @@ WORKERS_TOOLS = {
     "deputy_worker_smoke",
     "deputy_worker_exact_payload_smoke",
 }
-EXPECTED_TESTS = {"agents": 143, "workers": 334}
+EXPECTED_TESTS = {"agents": 177, "workers": 343}
 FORBIDDEN_ARCHIVE_PARTS = {
     ".git", ".venv", "evidence", "runtime", "runs", "logs", "snapshots",
     "local-snapshots", "bridge-lab", "deputy-shell-source", "android-sdk",
@@ -56,6 +56,9 @@ SECRET_PATTERNS = (
     re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
     re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{20,}"),
     re.compile(r"\bsk-[A-Za-z0-9]{24,}\b"),
+    re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{20,}\b"),
+    re.compile(r"\bglpat-[A-Za-z0-9_-]{20,}\b"),
+    re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b"),
 )
 PERSONAL_PATH = re.compile(r"(?i)\b[A-Z]:" + r"\\Users\\[^\\\s]+\\")
 PERSONAL_PATH_SLASH = re.compile(r"(?i)\b[A-Z]:" + "/" + "Users/[^/\\s]+/")
@@ -182,9 +185,9 @@ def contract_check() -> None:
         registry = load_registry()
 
         checks = {
-            "runtime": RUNTIME_CONTRACT_VERSION == "DA-PACKAGING-1" == snapshot.RUNTIME_CONTRACT_VERSION,
+            "runtime": RUNTIME_CONTRACT_VERSION == "DA-PRIVACY-1" == snapshot.RUNTIME_CONTRACT_VERSION,
             "coherence": snapshot.COHERENCE_VERSION == "DA-BYTE-COHERENCE-1",
-            "snapshot_policy": snapshot.POLICY_VERSION == "DA-FAST-2-positive-allowlist-v1",
+            "snapshot_policy": snapshot.POLICY_VERSION == "DA-PRIVACY-1-positive-policy-v1",
             "provider": PROVIDER_ID == "opencode",
             "model": MODEL_ID == "muse-spark-1.3-contributor-free",
             "selection": SELECTION_SOURCE == "SERVER_OWNED",
@@ -193,6 +196,10 @@ def contract_check() -> None:
             "workers_tools": worker_tools == WORKERS_TOOLS,
             "workers_capabilities": len(registry) == 22 and all(item.get("enabled") is True for item in registry.values()),
             "workers_no_generic_authority": not (set(registry) & FORBIDDEN_WORKER_OPERATIONS),
+            "public_result_sanitizer": __import__("worker_v1.privacy", fromlist=["PUBLIC_RESULT_SANITIZER_VERSION"]).PUBLIC_RESULT_SANITIZER_VERSION == "DA-PUBLIC-RESULT-SANITIZER-1",
+            "privacy_contract": __import__("privacy").PRIVACY_CONTRACT_VERSION == "DA-PRIVACY-1",
+            "secret_detector": __import__("privacy").SECRET_DETECTOR_VERSION == "DA-HIGH-CONFIDENCE-SECRETS-1",
+            "trust_model": __import__("privacy").TRUST_MODEL == "TRUSTED_SINGLE_OPERATOR_V1",
             "mcp_qualification": importlib.metadata.version("mcp") == "2.2.0",
         }
     except Exception as exc:
@@ -203,7 +210,7 @@ def contract_check() -> None:
     docs = {
         ROOT / "README.md": ("opencode", "muse-spark-1.3-contributor-free", "deputy_recon_cancel"),
         ROOT / "agents" / "docs" / "ARCHITECTURE.md": (
-            "DA-PACKAGING-1", "DA-BYTE-COHERENCE-1", "DA-FAST-2-positive-allowlist-v1",
+            "DA-PRIVACY-1", "DA-BYTE-COHERENCE-1", "DA-PRIVACY-1-positive-policy-v1",
         ),
         ROOT / "workers" / "README.md": ("22", "deputy-workers-mcp"),
     }
@@ -497,9 +504,13 @@ def release_bundle(args: argparse.Namespace) -> None:
             "agents_tests": EXPECTED_TESTS["agents"],
             "workers_tests": EXPECTED_TESTS["workers"],
             "workers_capabilities": 22,
-            "runtime_contract": "DA-PACKAGING-1",
+            "runtime_contract": "DA-PRIVACY-1",
             "coherence_contract": "DA-BYTE-COHERENCE-1",
-            "snapshot_policy": "DA-FAST-2-positive-allowlist-v1",
+            "snapshot_policy": "DA-PRIVACY-1-positive-policy-v1",
+            "privacy_contract": "DA-PRIVACY-1",
+            "secret_detector": "DA-HIGH-CONFIDENCE-SECRETS-1",
+            "public_result_sanitizer": "DA-PUBLIC-RESULT-SANITIZER-1",
+            "trust_model": "TRUSTED_SINGLE_OPERATOR_V1",
             "provider": "opencode",
             "model": "muse-spark-1.3-contributor-free",
             "agents_production_tools": sorted(AGENTS_TOOLS),

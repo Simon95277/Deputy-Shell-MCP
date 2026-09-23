@@ -5,7 +5,7 @@ import re
 from typing import Any
 
 
-RUNTIME_CONTRACT_VERSION = "DA-PACKAGING-1"
+RUNTIME_CONTRACT_VERSION = "DA-PRIVACY-1"
 PROVIDER_ID = "opencode"
 MODEL_ID = "muse-spark-1.3-contributor-free"
 PROVIDER_HOST = "opencode.ai"

@@ -18,8 +18,8 @@ class SnapshotCoherenceTests(unittest.TestCase):
 
     def test_01_schema(self): self.assertEqual("deputy.recon.snapshot-coherence.v1", "deputy.recon.snapshot-coherence.v1")
     def test_02_coherence_marker(self): self.assertEqual(snapshot.COHERENCE_VERSION, "DA-BYTE-COHERENCE-1")
-    def test_03_runtime_marker(self): self.assertEqual(snapshot.RUNTIME_CONTRACT_VERSION, "DA-PACKAGING-1")
-    def test_04_policy_unchanged(self): self.assertEqual(snapshot.POLICY_VERSION, "DA-FAST-2-positive-allowlist-v1")
+    def test_03_runtime_marker(self): self.assertEqual(snapshot.RUNTIME_CONTRACT_VERSION, "DA-PRIVACY-1")
+    def test_04_policy_versioned_for_privacy(self): self.assertEqual(snapshot.POLICY_VERSION, "DA-PRIVACY-1-positive-policy-v1")
     def test_05_hash_stable(self):
         source, candidate = self._file(); self.assertEqual(snapshot._sha256(source), snapshot._sha256(candidate))
     def test_06_hash_detects_source_change(self):

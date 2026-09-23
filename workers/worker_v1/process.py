@@ -1,6 +1,7 @@
 from __future__ import annotations
 import os, subprocess, sys, time, ctypes
 from pathlib import Path
+from .privacy import child_environment
 
 if os.name == "nt":
     from ctypes import wintypes
@@ -59,6 +60,6 @@ def evidence(pid: int) -> dict:
 
 def terminate_tree(pid: int) -> None:
     if os.name == "nt":
-        subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True, text=True, timeout=10, check=False)
+        subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], env=child_environment(), capture_output=True, text=True, timeout=10, check=False)
     else:
         os.kill(pid, 15)

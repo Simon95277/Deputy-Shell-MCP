@@ -72,6 +72,23 @@ Deployment-only overrides include `DEPUTYAGENTS_RUNTIME_ROOT`,
 MCP callers cannot set these roots. `--check` validates prerequisites without
 installing tools, pulling images, changing PATH, or performing device actions.
 
+Hermes is not required. Any compatible MCP host that can launch the stdio
+entrypoints may host these servers. Agents uses the server-owned digest-pinned
+OpenCode container; a separate host OpenCode installation is not required.
+The source repository and optional `DEPUTYAGENTS_SOURCE_POLICY_JSON` are
+server-owner configuration, never MCP parameters. The policy is a bounded
+`deputy.agents.source-policy.v1` object; omitted configuration preserves the
+qualified Deputy Shell allowlist.
+
+Supported trust model: `TRUSTED_SINGLE_OPERATOR_V1`. The machine owner and
+deployment configuration are trusted; MCP callers do not receive host
+authority. This product is not a hostile multi-user or multi-tenant service
+and does not provide per-user filesystem or credential isolation. Provider-
+exposable snapshot source is sent to the configured inference provider as
+needed. Secret scanning blocks documented high-confidence credential forms;
+it is not comprehensive PII detection. Model output may quote qualified source
+content, so bounded output length is not a confidentiality guarantee.
+
 Use `scripts/install.ps1 -Component Agents` or `-Component Workers` for the
 bounded Windows bootstrap. It creates a user-local venv, installs only the
 selected local distribution, runs `pip check`, and never changes global Git or
