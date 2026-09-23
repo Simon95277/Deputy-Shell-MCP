@@ -23,10 +23,10 @@
 
 ## Shared
 
-- **Phase #9 — CI and release-candidate gates:** workflow implementation is in
-  this change. Acceptance requires green PR and main CI plus a successful
-  manually dispatched release-candidate qualification. The workflow does not
-  publish a release, create a tag, or publish to PyPI.
-- **Next: Phase #10 — privacy and generalization.**
+- **Phase #9 — CI and release-candidate gates: COMPLETED.** PR CI, main CI,
+  and manual release-candidate qualification passed. Candidate artifacts are
+  checksummed and uploaded ephemerally; no release, tag, or PyPI publication
+  was performed.
+- **Phase #10 — privacy and generalization: IN PROGRESS.**
 - Phase #11: efficiency benchmark.
 - Phase #12: v1.0 maturity gate.

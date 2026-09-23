@@ -4,6 +4,7 @@ from pathlib import Path
 from .models import ACTIVE, TERMINAL, validate_job
 from .process import identity, terminate_tree
 from .storage import atomic_json, read_json
+from .privacy import child_environment
 
 class DurableRunEngine:
     def __init__(self, root: Path):
@@ -71,7 +72,7 @@ class DurableRunEngine:
             # CREATE_NEW_PROCESS_GROUP combined with the venv interpreter and
             # redirected handles can fail before Python initializes; owned
             # tree cancellation is performed explicitly by terminate_tree().
-            p=subprocess.Popen(args,cwd=self.root,stdout=out,stderr=err,close_fds=False)
+            p=subprocess.Popen(args,cwd=self.root,env=child_environment(),stdout=out,stderr=err,close_fds=False)
             self._write_state(run_id,{"state":"RUNNING","worker_pid":p.pid,"worker_identity":identity(p.pid)},started_at=now)
             atomic_json(self.active,{"schema":"deputy.worker-active.v1","run_id":run_id,"worker_pid":p.pid,"worker_identity":identity(p.pid)})
             threading.Thread(target=self._watch,args=(run_id,p,out,err),daemon=True).start()

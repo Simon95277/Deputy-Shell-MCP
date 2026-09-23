@@ -18,6 +18,7 @@ from config import EVIDENCE_ROOT, JOB_STATE_ROOT
 from bridge import executor
 from bridge.executor import execute, ACTIVE as EXECUTOR_ACTIVE, LOCK as EXECUTOR_LOCK
 from bridge.provider_contract import RUNTIME_CONTRACT_VERSION
+from privacy import public_error_code
 
 
 mcp = MCPServer("DeputyAgentsMCP")
@@ -141,7 +142,7 @@ def _run_async(job_id, goal, workspace_id):
             _persist_job(_JOBS[job_id], output)
     except Exception as exc:
         with _JOBS_LOCK:
-            output = {"status": "CONTAINMENT_ERROR", "job_id": job_id, "workspace_id": workspace_id, "runtime_contract_version": RUNTIME_CONTRACT_VERSION, "error": str(exc)}
+            output = {"status": "CONTAINMENT_ERROR", "job_id": job_id, "workspace_id": workspace_id, "runtime_contract_version": RUNTIME_CONTRACT_VERSION, "error": public_error_code(exc)}
             _JOBS[job_id].update({"status": "CONTAINMENT_ERROR", "result": output, "updated_at": time.time()})
             _persist_job(_JOBS[job_id], output)
 

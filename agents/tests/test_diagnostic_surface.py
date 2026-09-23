@@ -119,7 +119,7 @@ class DiagnosticSurfaceTests(unittest.TestCase):
 
     def test_22_runtime_marker_is_surface_one(self):
         import server
-        self.assertEqual(server.RUNTIME_CONTRACT_VERSION, "DA-PACKAGING-1")
+        self.assertEqual(server.RUNTIME_CONTRACT_VERSION, "DA-PRIVACY-1")
 
 
 if __name__ == "__main__":

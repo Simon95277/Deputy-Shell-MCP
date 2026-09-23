@@ -20,6 +20,7 @@ from worker_v1.capabilities import (
     APPROVED_VERIFIERS,
     load_registry,
 )
+from worker_v1.privacy import public_result
 from config import EVIDENCE_ROOT, RUNTIME_ROOT, TRUSTED_PYTHON
 
 
@@ -434,6 +435,8 @@ def _direct_hermes(
 def run_direct_worker_smoke_internal() -> dict[str, object]:
     if not verify_contract()["ok"]:
         return {"status": "BLOCKED", "stage": "contract_verification"}
+    if not HERMES_EXE.is_file():
+        return {"status": "BLOCKED", "stage": "hermes_executable"}
     job_dir = Path(tempfile.mkdtemp(prefix="direct_worker_smoke_", dir=str(BASE_DIR)))
     before = set(delegation_dirs())
     run = _direct_hermes(
@@ -816,16 +819,13 @@ def deputy_worker_status() -> dict[str, object]:
     """
 
     contract = verify_contract()
-
-    if not contract["ok"]:
-        return {
-            "status": "BLOCKED",
-            "server": SERVER_NAME,
-            "contract_path": str(CONTRACT_PATH),
-            **contract,
-        }
-
     registry = load_registry()
+    legacy_reason = None
+    if not contract["ok"]:
+        legacy_reason = ("LEGACY_WORKER_CONTRACT_MISSING" if not CONTRACT_PATH.is_file()
+                        else "LEGACY_WORKER_CONTRACT_INVALID")
+    elif not HERMES_EXE.is_file():
+        legacy_reason = "LEGACY_HERMES_UNAVAILABLE"
     symbolic_ids = {
         "GRADLE": sorted(APPROVED_GRADLE_TASKS),
         "RUN_APPROVED_VERIFIER": sorted(APPROVED_VERIFIERS),
@@ -845,19 +845,21 @@ def deputy_worker_status() -> dict[str, object]:
         for name, metadata in sorted(registry.items())
     ]
 
-    return {
+    return public_result({
         "status": "PASS",
         "server": SERVER_NAME,
         "contract": "DEPUTY SHELL WORKER CONTRACT v1",
-        "contract_path": str(CONTRACT_PATH),
-        "contract_sha256": contract["sha256"],
+        **({"contract_sha256": contract["sha256"]} if contract["ok"] else {}),
         "privacy_mode": "BOUNDED_TYPED_V1_1",
-        "hermes_enabled": True,
+        "hermes_enabled": HERMES_EXE.is_file(),
         "repository_access": "BOUNDED",
         "v6_access": False,
         "external_model_calls": False,
         "legacy_smoke": {
-            "status": "SAFE_TEST_ONLY",
+            "status": "SAFE_TEST_ONLY" if legacy_reason is None else "UNAVAILABLE",
+            "contract_status": "PASS" if contract["ok"] else ("INVALID" if CONTRACT_PATH.is_file() else "MISSING"),
+            "hermes_available": HERMES_EXE.is_file(),
+            **({} if legacy_reason is None else {"reason_code": legacy_reason}),
             "repository_access": False,
             "description": "Synthetic contract/delegation validation only.",
         },
@@ -874,7 +876,7 @@ def deputy_worker_status() -> dict[str, object]:
             "generic_adb_shell": False,
             "arbitrary_process_execution": False,
         },
-    }
+    })
 
 
 @mcp.tool()
@@ -891,13 +893,13 @@ def deputy_worker_smoke() -> dict[str, object]:
     project data is supplied to the external worker.
     """
 
-    return run_worker_smoke_internal()
+    return public_result(run_worker_smoke_internal())
 
 
 @mcp.tool()
 def deputy_worker_exact_payload_smoke() -> dict[str, object]:
     """Run the synthetic exact-authority file-payload delegation smoke."""
-    return run_exact_payload_smoke_internal()
+    return public_result(run_exact_payload_smoke_internal())
 
 
 @mcp.tool()
@@ -936,27 +938,27 @@ def deputy_worker_start(steps: list[dict[str, object]]) -> dict[str, object]:
             "repo": {"binding": "deputy-authoritative-v1"},
             "steps": canonical_steps,
         }
-        return PRODUCTION_ENGINE.start(job)
+        return public_result(PRODUCTION_ENGINE.start(job))
     except (TypeError, ValueError) as exc:
-        return {"status": "REJECTED", "reason": str(exc)}
+        return {"status": "REJECTED", "reason": "JOB_SCHEMA_INVALID"}
 
 
 @mcp.tool()
 def deputy_worker_run_status(run_id: str) -> dict[str, object]:
-    if str(run_id).startswith("production-"): return PRODUCTION_ENGINE.status(run_id)
-    return W2_ENGINE.status(run_id)
+    if str(run_id).startswith("production-"): return public_result(PRODUCTION_ENGINE.status(run_id))
+    return public_result(W2_ENGINE.status(run_id))
 
 
 @mcp.tool()
 def deputy_worker_result(run_id: str) -> dict[str, object]:
-    if str(run_id).startswith("production-"): return PRODUCTION_ENGINE.result(run_id)
-    return W2_ENGINE.result(run_id)
+    if str(run_id).startswith("production-"): return public_result(PRODUCTION_ENGINE.result(run_id))
+    return public_result(W2_ENGINE.result(run_id))
 
 
 @mcp.tool()
 def deputy_worker_cancel(run_id: str) -> dict[str, object]:
-    if str(run_id).startswith("production-"): return PRODUCTION_ENGINE.cancel(run_id)
-    return W2_ENGINE.cancel(run_id)
+    if str(run_id).startswith("production-"): return public_result(PRODUCTION_ENGINE.cancel(run_id))
+    return public_result(W2_ENGINE.cancel(run_id))
 
 
 def main(argv=None):

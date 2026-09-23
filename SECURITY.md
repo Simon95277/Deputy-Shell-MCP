@@ -7,9 +7,12 @@ credentials, or private data through ordinary public Issues, pull requests, or
 discussions.
 
 See [the threat model](docs/THREAT_MODEL.md) for current boundaries and known
-limitations. Snapshot capture does not yet provide transactional whole-tree
-byte coherence; changes during capture are detected by bounded before/after
-state checks.
+limitations. Agents qualifies each selected candidate generation with
+`DA-BYTE-COHERENCE-1` byte coherence and the server-owned
+`DA-PRIVACY-1-positive-policy-v1` source policy, including a deterministic
+high-confidence content-secret scan before worker/provider setup. This reduces
+specific exposure risks; it does not make provider-exposable source
+confidential or provide comprehensive PII detection.
 
 ## Scope
 

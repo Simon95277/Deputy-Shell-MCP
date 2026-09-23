@@ -7,6 +7,7 @@ from . import host_ops
 from .process import identity, terminate_tree
 from .storage import atomic_json, read_json
 from .repo_integrity import capture_snapshot, compare_snapshots
+from .privacy import child_environment
 from config import TRUSTED_PYTHON
 
 TERMINAL={"PASS","FAIL","BLOCKED","CANCELLED"}
@@ -99,7 +100,7 @@ class ProductionRunEngine:
             atomic_json(d/"job.json",job); atomic_json(d/"state.json",{"schema":"deputy.worker-state.v1","run_id":rid,"state":"QUEUED","worker_pid":None,"created_at":time.time()}); atomic_json(self.active,{"schema":"deputy.worker-active.v1","run_id":rid,"worker_pid":None})
             try:
                 command = _build_production_worker_command(self.root, rid)
-                p=subprocess.Popen(command,cwd=str(Path(__file__).resolve().parent.parent),stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,close_fds=False,shell=False)
+                p=subprocess.Popen(command,cwd=str(Path(__file__).resolve().parent.parent),env=child_environment(include_worker_config=True),stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,close_fds=False,shell=False)
             except (RuntimeError, OSError):
                 self._release_active_if_owned(rid)
                 return {"status":"BLOCKED","reason":"TRUSTED_WORKER_INTERPRETER_UNAVAILABLE"}

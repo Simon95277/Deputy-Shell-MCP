@@ -41,7 +41,7 @@ class AgentsPackagingTests(unittest.TestCase):
         self.assertEqual(before, after)
 
     def test_provider_marker_is_packaging_generation(self):
-        self.assertEqual(server.RUNTIME_CONTRACT_VERSION, "DA-PACKAGING-1")
+        self.assertEqual(server.RUNTIME_CONTRACT_VERSION, "DA-PRIVACY-1")
 
 
 if __name__ == "__main__":
