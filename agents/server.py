@@ -120,7 +120,7 @@ def deputy_git_probe() -> dict:
     return {"runtime_contract_version": RUNTIME_CONTRACT_VERSION, "identity": {"git_executable": Path(snapshot.GIT or "git").name, "git_version": subprocess.run([snapshot.GIT or "git", "--version"], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=3).stdout.strip(), "python_executable": Path(sys.executable).name, "process_architecture": platform.architecture()[0], "inherited_git_variable_names": names}, "direct_production_environment": _git_probe_sequence(False), "direct_sanitized_environment": _git_probe_sequence(True), "async_thread_production_environment": _git_probe_async_thread()}
 
 def _cleanup_metadata(job_id):
-    path = executor.LAB / "evidence" / job_id / "cleanup.json"
+    path = EVIDENCE_ROOT / job_id / "cleanup.json"
     if not path.exists():
         return None
     try:
@@ -235,6 +235,20 @@ if DIAGNOSTICS_ENABLED:
     mcp.tool(description="Development-only fixed child transport diagnostic; enabled only by server-owned configuration.")(deputy_child_ping)
 
 
-if __name__ == "__main__":
+def main(argv=None):
+    args = list(sys.argv[1:] if argv is None else argv)
+    if args == ["--check"]:
+        from preflight import check
+        result = check()
+        print(__import__("json").dumps(result, sort_keys=True))
+        return 0 if result["status"] == "PASS" else 1
+    if args:
+        print("unsupported arguments; use --check or no arguments", file=sys.stderr)
+        return 2
     startup_reconcile()
     mcp.run(transport="stdio")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

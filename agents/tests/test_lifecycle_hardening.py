@@ -12,12 +12,15 @@ class LifecycleHardeningTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.old_root = server.JOB_STATE_ROOT
+        self.old_evidence_root = executor.EVIDENCE_ROOT
         server.JOB_STATE_ROOT = Path(self.tmp.name) / "jobs"
+        executor.EVIDENCE_ROOT = Path(self.tmp.name) / "evidence"
         server._JOBS.clear()
 
     def tearDown(self):
         server._JOBS.clear()
         server.JOB_STATE_ROOT = self.old_root
+        executor.EVIDENCE_ROOT = self.old_evidence_root
         self.tmp.cleanup()
 
     def job(self, status="RUNNING"):
@@ -75,7 +78,7 @@ class LifecycleHardeningTests(unittest.TestCase):
     def test_pending_cancel_is_consumed_on_registration(self):
         executor.PENDING_CANCELS.add("e" * 32)
         import shutil
-        shutil.rmtree(executor.LAB / "evidence" / ("e" * 32), ignore_errors=True)
+        shutil.rmtree(executor.EVIDENCE_ROOT / ("e" * 32), ignore_errors=True)
         with mock.patch.object(executor, "_prepare_snapshot", side_effect=AssertionError("snapshot must not start")), mock.patch.object(executor, "_cleanup"), mock.patch.object(executor, "list_resources", return_value={"containers": [], "networks": []}):
             out = executor.execute("bounded", "BRIDGE_LAB", job_id="e" * 32)
         self.assertEqual(out["status"], "CANCELLED"); self.assertNotIn("e" * 32, executor.PENDING_CANCELS)

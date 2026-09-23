@@ -3,6 +3,7 @@ import json, os, shutil, subprocess, tempfile, threading, time, uuid
 from pathlib import Path
 from .core import LAB, DOCKER, OPENCODE_IMAGE, SQUID_IMAGE, WORKSPACES, WORKERS, build_snapshot, build_argv, parse_events, result, validate_request
 from .provider_contract import MODEL_ID, MODEL_SELECTOR, PROVIDER_HOST, PROVIDER_ID, evidence, inline_config_content, validate_contract
+from config import EVIDENCE_ROOT
 from snapshot import SNAPSHOT_ROOT, REPO, create_snapshot, PreparationTimeout
 
 PREPARATION_BUDGET_MS = 15000
@@ -240,7 +241,7 @@ def execute(goal, workspace_id="BRIDGE_LAB", worker_profile="RECON", inject_fail
     validate_request(goal,workspace_id,worker_profile)
     validate_contract()
     job=job_id or uuid.uuid4().hex; res=_docker_resources(job); started=time.monotonic(); preparation_deadline=started + PREPARATION_BUDGET_MS / 1000; cancel_event=threading.Event(); marks={}
-    evdir=LAB/"evidence"/job; snap=evdir/"snapshot"; evdir.mkdir(parents=True,exist_ok=False)
+    evdir=EVIDENCE_ROOT/job; snap=evdir/"snapshot"; evdir.mkdir(parents=True,exist_ok=False)
     request={"goal":goal,"workspace_id":workspace_id,"worker_profile":worker_profile,"job_id":job}; (evdir/"request.json").write_text(json.dumps(request,indent=2),encoding="utf-8")
     state={"resources":res,"cancel":cancel_event,"execution_state":"PREPARING","created_at":time.time()};
     with LOCK:

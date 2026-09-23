@@ -5,11 +5,30 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "deputy-workers-mcp"
 version = "1.1.0"
+description = "Bounded deterministic Deputy Shell Workers MCP runtime"
+readme = "README.md"
+license = "Apache-2.0"
+authors = [{name = "Deputy Shell Dev Team"}]
 requires-python = ">=3.10"
 dependencies = ["mcp>=2,<3"]
+
+[project.urls]
+Homepage = "https://deputyshell.com"
+Repository = "https://github.com/Simon95277/Deputy-Shell-MCP"
 
 [tool.deputy-workers]
 qualification-mcp = "2.2.0"
 
+[project.scripts]
+deputy-workers-mcp = "server:main"
+
+[tool.setuptools]
+py-modules = ["server", "config", "preflight"]
+include-package-data = false
+
 [tool.setuptools.packages.find]
+where = ["."]
 include = ["worker_v1*"]
+
+[tool.setuptools.data-files]
+"share/deputy-workers-mcp" = ["WORKER_CAPABILITIES.json"]

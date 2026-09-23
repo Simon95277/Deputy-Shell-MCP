@@ -39,6 +39,56 @@ parameters, and authority. Agents and Workers are separate MCP systems.
 See `docs/ARCHITECTURE.md`, `docs/THREAT_MODEL.md`, and the subsystem
 documentation for implementation details.
 
+## Clean installation
+
+Python 3.10 or newer is required. Agents and Workers are independent MCP
+distributions and can use separate virtual environments. Install from a clean
+checkout without changing directory into the runtime at execution time:
+
+```powershell
+python -m venv .venv-agents
+.venv-agents\Scripts\python -m pip install .\agents
+.venv-agents\Scripts\deputy-agents-mcp --check
+
+python -m venv .venv-workers
+.venv-workers\Scripts\python -m pip install .\workers
+.venv-workers\Scripts\deputy-workers-mcp --check
+```
+
+Configure the server-owned environment before starting MCP. Agents requires
+Docker, Git, and `DEPUTYAGENTS_DEPUTY_SHELL_ROOT`; Workers requires the
+Deputy Shell checkout, trusted Python, and Android SDK/ADB for device-bound
+operations. Runtime state is outside the installed package by default:
+
+- Agents: `%LOCALAPPDATA%\DeputyShellAgentsMCP` on Windows;
+- Workers: `%LOCALAPPDATA%\DeputyWorkersMCP` on Windows;
+- POSIX uses `$XDG_STATE_HOME` or `~/.local/state`, and macOS uses its
+  application-support directory.
+
+Deployment-only overrides include `DEPUTYAGENTS_RUNTIME_ROOT`,
+`DEPUTYAGENTS_EVIDENCE_ROOT`, `DEPUTYAGENTS_JOB_STATE_ROOT`,
+`DEPUTYAGENTS_SNAPSHOT_ROOT`, `DEPUTYAGENTS_DEPUTY_SHELL_ROOT`,
+`DEPUTYAGENTS_DOCKER_EXE`, and the corresponding `DEPUTYWORKERS_*` values.
+MCP callers cannot set these roots. `--check` validates prerequisites without
+installing tools, pulling images, changing PATH, or performing device actions.
+
+Use `scripts/install.ps1 -Component Agents` or `-Component Workers` for the
+bounded Windows bootstrap. It creates a user-local venv, installs only the
+selected local distribution, runs `pip check`, and never changes global Git or
+PATH configuration.
+
+## Dependency qualification
+
+Both distributions declare the compatibility range `mcp>=2,<3` and qualify
+against MCP `2.2.0`. The generated Windows CPython 3.10 qualification set is
+in `constraints/qualification-windows-py310.txt`; the deterministic build
+tool set is in `constraints/build-tools-windows-py310.txt`. Refresh these
+files only from a clean resolver environment, record the Python/OS/architecture
+matrix, and review the complete diff before accepting a new lock.
+Release builds use `python -m build --dependency-constraints-txt
+constraints/build-tools-windows-py310.txt` so isolated setuptools resolution is
+bounded by the recorded build-tool set.
+
 ## Development
 
 Create separate environments for the two runtimes. Agents declares `mcp>=2,<3`

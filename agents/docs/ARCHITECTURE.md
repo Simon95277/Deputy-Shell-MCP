@@ -8,7 +8,7 @@ It is implementation documentation, not an aspirational design document.
 
 Current runtime contract marker:
 
-`DA-PROVIDER-1`
+`DA-PACKAGING-1`
 
 Current primary snapshot policy:
 
@@ -122,7 +122,7 @@ Responsibilities:
 Important current constants:
 
 ```text
-RUNTIME_CONTRACT_VERSION = DA-PROVIDER-1
+RUNTIME_CONTRACT_VERSION = DA-PACKAGING-1
 MAX_CONCURRENT_RECON = 2
 ```
 
@@ -1074,16 +1074,19 @@ The public async layer additionally uses:
 
 ## 16. Evidence layout
 
-The executor currently stores job evidence under the configured bridge root:
+The executor stores job evidence under the single authoritative evidence root:
 
 ```text
-<configured-bridge-root>/evidence/<job-id>/
+<DEPUTYAGENTS_EVIDENCE_ROOT>/<job-id>/
 ```
 
 This path is derived from the server-owned `BRIDGE_FIXTURES` configuration and
-is not caller-controlled. `config.py` also defines `DEPUTYAGENTS_EVIDENCE_ROOT`,
-but the current executor does not yet consume that setting; wiring it cleanly
-is future packaging/runtime-root work.
+is not caller-controlled. Runtime roots default outside the installed package:
+`%LOCALAPPDATA%\\DeputyShellAgentsMCP` on Windows, `$XDG_STATE_HOME/DeputyShellAgentsMCP`
+on POSIX, or the platform application-support directory on macOS.
+`DEPUTYAGENTS_EVIDENCE_ROOT`, `DEPUTYAGENTS_JOB_STATE_ROOT`, and
+`DEPUTYAGENTS_SNAPSHOT_ROOT` are deployment configuration overrides, not MCP
+caller parameters.
 
 Typical files can include:
 
@@ -1272,7 +1275,7 @@ reconnaissance succeeded.
 Validated run:
 
 ```text
-runtime                         DA-PROVIDER-1
+runtime                         DA-PACKAGING-1
 status                          PASS
 snapshot policy                 DA-FAST-2-positive-allowlist-v1
 snapshot file count             625

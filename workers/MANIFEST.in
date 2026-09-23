@@ -1,0 +1,12 @@
+include pyproject.toml README.md WORKER_CAPABILITIES.json
+include *.py
+recursive-include worker_v1 *.py
+recursive-include tests *.py
+prune runtime
+prune evidence
+prune android-sdk
+prune deputy-shell-source
+prune deputy_workers_mcp.egg-info
+global-exclude *.py[cod]
+global-exclude *.log
+global-exclude *.tmp
