@@ -18,9 +18,9 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 20
     env:
-      DEPUTYAGENTS_RUNTIME_ROOT: ${{ runner.temp }}\deputy-agents-runtime
-      DEPUTYAGENTS_DEPUTY_SHELL_ROOT: ${{ runner.temp }}\deputy-ci-fixture\repo
-      DEPUTYAGENTS_DOCKER_EXE: ${{ runner.temp }}\deputy-ci-fixture\bin\docker-stub.exe
+      DEPUTYAGENTS_RUNTIME_ROOT: ${{ github.workspace }}/../deputy-agents-runtime
+      DEPUTYAGENTS_DEPUTY_SHELL_ROOT: ${{ github.workspace }}/../deputy-ci-fixture/repo
+      DEPUTYAGENTS_DOCKER_EXE: ${{ github.workspace }}/../deputy-ci-fixture/bin/docker-stub.exe
     steps:
       # PR code is untrusted. This workflow uses a read-only token, no secrets,
       # no privileged runner, and no pull_request_target trigger.
@@ -56,9 +56,9 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 25
     env:
-      DEPUTYWORKERS_RUNTIME_ROOT: ${{ runner.temp }}\deputy-workers-runtime
-      DEPUTYWORKERS_DEPUTY_SHELL_ROOT: ${{ runner.temp }}\deputy-ci-fixture\repo
-      DEPUTYWORKERS_ANDROID_SDK_ROOT: ${{ runner.temp }}\deputy-ci-fixture\sdk
+      DEPUTYWORKERS_RUNTIME_ROOT: ${{ github.workspace }}/../deputy-workers-runtime
+      DEPUTYWORKERS_DEPUTY_SHELL_ROOT: ${{ github.workspace }}/../deputy-ci-fixture/repo
+      DEPUTYWORKERS_ANDROID_SDK_ROOT: ${{ github.workspace }}/../deputy-ci-fixture/sdk
     steps:
       # PR code is untrusted. No secrets or write permissions reach this job.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -136,12 +136,12 @@ jobs:
       matrix:
         python-version: ['3.10', '3.14.7']
     env:
-      DEPUTYAGENTS_RUNTIME_ROOT: ${{ runner.temp }}/deputy-agents-runtime
-      DEPUTYAGENTS_DEPUTY_SHELL_ROOT: ${{ runner.temp }}/deputy-ci-fixture/repo
-      DEPUTYAGENTS_DOCKER_EXE: ${{ runner.temp }}/deputy-ci-fixture/bin/docker-stub
-      DEPUTYWORKERS_RUNTIME_ROOT: ${{ runner.temp }}/deputy-workers-runtime
-      DEPUTYWORKERS_DEPUTY_SHELL_ROOT: ${{ runner.temp }}/deputy-ci-fixture/repo
-      DEPUTYWORKERS_ANDROID_SDK_ROOT: ${{ runner.temp }}/deputy-ci-fixture/sdk
+      DEPUTYAGENTS_RUNTIME_ROOT: ${{ github.workspace }}/../deputy-agents-runtime
+      DEPUTYAGENTS_DEPUTY_SHELL_ROOT: ${{ github.workspace }}/../deputy-ci-fixture/repo
+      DEPUTYAGENTS_DOCKER_EXE: ${{ github.workspace }}/../deputy-ci-fixture/bin/docker-stub
+      DEPUTYWORKERS_RUNTIME_ROOT: ${{ github.workspace }}/../deputy-workers-runtime
+      DEPUTYWORKERS_DEPUTY_SHELL_ROOT: ${{ github.workspace }}/../deputy-ci-fixture/repo
+      DEPUTYWORKERS_ANDROID_SDK_ROOT: ${{ github.workspace }}/../deputy-ci-fixture/sdk
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
