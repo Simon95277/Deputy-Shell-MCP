@@ -52,7 +52,11 @@ class C5BTests(unittest.TestCase):
     def test_e18_job_json_immutable(self):
         r=self.engine.start(self.real_job(step("a","CHECK_FILE","app/build.gradle.kts"))); p=self.root/"runs"/r["run_id"]/"job.json"; before=hashlib.sha256(p.read_bytes()).hexdigest(); self.wait(r); self.assertEqual(before,hashlib.sha256(p.read_bytes()).hexdigest())
     def test_e19_terminal_step_evidence_persists(self):
-        r=self.engine.start(self.real_job(step("a","CHECK_FILE","app/build.gradle.kts"))); self.wait(r); evidence=self.root/"runs"/r["run_id"]/"steps/a/result.json"; self.assertTrue(evidence.exists()); r2=self.engine.start(self.real_job(step("b","CHECK_FILE","app/build.gradle.kts"))); self.wait(r2); self.assertTrue(evidence.exists())
+        r=self.engine.start(self.real_job(step("a","CHECK_FILE","app/build.gradle.kts"))); self.wait(r); evidence=self.root/"runs"/r["run_id"]/("steps/a/result.json"); self.assertTrue(evidence.exists())
+        deadline=time.monotonic()+5
+        while self.engine.active.exists() and time.monotonic()<deadline: time.sleep(.01)
+        self.assertFalse(self.engine.active.exists(), "terminal worker ownership was not released")
+        r2=self.engine.start(self.real_job(step("b","CHECK_FILE","app/build.gradle.kts"))); self.wait(r2); self.assertTrue(evidence.exists())
     def test_e20_unknown_and_unimplemented_never_dispatch(self):
         with mock.patch.object(host_ops,"dispatch",side_effect=AssertionError("dispatcher reached")) as dispatch:
             self.assertFalse(validate_job(self.real_job(step("a","UNKNOWN")))["valid"]); r=self.engine.start(self.real_job(step("a","GRADLE",params={"task_id":"x"}))); self.assertEqual(r["status"],"REJECTED"); dispatch.assert_not_called()
