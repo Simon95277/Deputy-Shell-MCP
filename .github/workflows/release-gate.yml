@@ -1,0 +1,166 @@
+name: Release candidate qualification
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-candidate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  main-ref-gate:
+    name: Require current main before source qualification
+    runs-on: windows-2025
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.10'
+      - name: Check dispatch ref and commit against current main
+        shell: pwsh
+        env:
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: python scripts/ci_checks.py check-release-ref
+
+  portable-linux:
+    name: Portability / Ubuntu Python ${{ matrix.python-version }}
+    needs: main-ref-gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.14.7']
+    env:
+      DEPUTYAGENTS_RUNTIME_ROOT: ${{ github.workspace }}/../deputy-agents-runtime
+      DEPUTYAGENTS_DEPUTY_SHELL_ROOT: ${{ github.workspace }}/../deputy-ci-fixture/repo
+      DEPUTYAGENTS_DOCKER_EXE: ${{ github.workspace }}/../deputy-ci-fixture/bin/docker-stub
+      DEPUTYWORKERS_RUNTIME_ROOT: ${{ github.workspace }}/../deputy-workers-runtime
+      DEPUTYWORKERS_DEPUTY_SHELL_ROOT: ${{ github.workspace }}/../deputy-ci-fixture/repo
+      DEPUTYWORKERS_ANDROID_SDK_ROOT: ${{ github.workspace }}/../deputy-ci-fixture/sdk
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        id: python
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install public compatibility dependencies
+        run: python -m pip install mcp==2.2.0 build
+      - name: Set Workers trusted interpreter
+        run: echo "DEPUTYWORKERS_PYTHON_EXE=$(command -v python)" >> "$GITHUB_ENV"
+      - name: Prepare synthetic repository and SDK fixtures
+        run: >-
+          python scripts/ci_checks.py fixture
+          --root "${{ github.workspace }}/../deputy-ci-fixture/repo"
+          --sdk "${{ github.workspace }}/../deputy-ci-fixture/sdk"
+          --docker-stub "${{ github.workspace }}/../deputy-ci-fixture/bin/docker-stub"
+      - name: Run full host-independent suites and contract checks
+        run: |
+          python -m compileall -q agents workers scripts/ci_checks.py
+          python scripts/ci_checks.py contracts
+          python scripts/ci_checks.py tests --component agents
+          python scripts/ci_checks.py tests --component workers
+      - name: Public tree hygiene
+        run: python scripts/ci_checks.py hygiene
+      - name: Build and audit source distributions and wheels
+        run: |
+          python -m build --sdist --wheel --outdir "$RUNNER_TEMP/linux-dist" agents
+          python -m build --sdist --wheel --outdir "$RUNNER_TEMP/linux-dist" workers
+          python scripts/ci_checks.py audit-artifacts --directory "$RUNNER_TEMP/linux-dist"
+
+  windows-release-candidate:
+    name: Windows deterministic qualification and candidate bundle
+    needs:
+      - main-ref-gate
+      - portable-linux
+    runs-on: windows-2025
+    timeout-minutes: 60
+    env:
+      DEPUTYAGENTS_RUNTIME_ROOT: ${{ github.workspace }}/../deputy-agents-runtime
+      DEPUTYAGENTS_DEPUTY_SHELL_ROOT: ${{ github.workspace }}/../deputy-ci-fixture/repo
+      DEPUTYAGENTS_DOCKER_EXE: ${{ github.workspace }}/../deputy-ci-fixture/bin/docker-stub.exe
+      DEPUTYWORKERS_RUNTIME_ROOT: ${{ github.workspace }}/../deputy-workers-runtime
+      DEPUTYWORKERS_DEPUTY_SHELL_ROOT: ${{ github.workspace }}/../deputy-ci-fixture/repo
+      DEPUTYWORKERS_ANDROID_SDK_ROOT: ${{ github.workspace }}/../deputy-ci-fixture/sdk
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        id: python
+        with:
+          python-version: '3.10'
+      - name: Require the selected commit to be current main
+        shell: pwsh
+        env:
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: python scripts/ci_checks.py check-release-ref
+      - name: Install deterministic Windows qualification dependencies
+        shell: pwsh
+        run: python -m pip install --constraint constraints/qualification-windows-py310.txt mcp==2.2.0
+      - name: Set Workers trusted interpreter
+        shell: pwsh
+        run: Add-Content -LiteralPath $env:GITHUB_ENV -Value "DEPUTYWORKERS_PYTHON_EXE=$((Get-Command python).Source)"
+      - name: Prepare synthetic repository and SDK fixtures
+        shell: pwsh
+        run: >-
+          python scripts/ci_checks.py fixture
+          --root "${{ github.workspace }}/../deputy-ci-fixture/repo"
+          --sdk "${{ github.workspace }}/../deputy-ci-fixture/sdk"
+          --docker-stub "${{ github.workspace }}/../deputy-ci-fixture/bin/docker-stub.exe"
+      - name: Run Windows Agents and Workers suites
+        shell: pwsh
+        env:
+          PYTHONUTF8: '1'
+        run: |
+          python -m compileall -q agents workers scripts/ci_checks.py
+          python scripts/ci_checks.py tests --component agents
+          python scripts/ci_checks.py tests --component workers
+      - name: Verify contracts, exact tools, and public tree hygiene
+        shell: pwsh
+        run: |
+          python scripts/ci_checks.py contracts
+          python scripts/ci_checks.py hygiene
+      - name: Install pinned build tools
+        shell: pwsh
+        run: python -m pip install --constraint constraints/build-tools-windows-py310.txt build
+      - name: Build packages, install wheels, rebuild and install sdists, and create manifests
+        shell: pwsh
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: >-
+          python scripts/ci_checks.py release-bundle
+          --output "${{ runner.temp }}\deputy-release-candidate"
+          --temp "${{ runner.temp }}\deputy-release-work"
+          --commit "$env:GITHUB_SHA"
+          --run-id "$env:GITHUB_RUN_ID"
+      - name: Recompute every candidate artifact hash and reject extra files
+        shell: pwsh
+        run: python scripts/ci_checks.py verify-bundle --directory "${{ runner.temp }}\deputy-release-candidate"
+      - name: Upload qualified release-candidate bundle only
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: deputy-mcp-release-candidate-${{ github.sha }}-${{ github.run_id }}
+          path: ${{ runner.temp }}\deputy-release-candidate\
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
