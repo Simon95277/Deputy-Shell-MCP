@@ -107,6 +107,9 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.10'
+      - name: Install deterministic Windows MCP qualification dependency
+        shell: pwsh
+        run: python -m pip install --constraint constraints/qualification-windows-py310.txt mcp==2.2.0
       - name: Install pinned build tools
         shell: pwsh
         run: python -m pip install --constraint constraints/build-tools-windows-py310.txt build
