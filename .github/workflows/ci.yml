@@ -166,10 +166,10 @@ jobs:
           python scripts/ci_checks.py contracts
           python scripts/ci_checks.py tests --component agents
           python scripts/ci_checks.py tests --component workers
+      - name: Public tree hygiene
+        run: python scripts/ci_checks.py hygiene
       - name: Build both source distributions and wheels
         run: |
           python -m build --sdist --wheel --outdir "$RUNNER_TEMP/linux-dist" agents
           python -m build --sdist --wheel --outdir "$RUNNER_TEMP/linux-dist" workers
           python scripts/ci_checks.py audit-artifacts --directory "$RUNNER_TEMP/linux-dist"
-      - name: Public tree hygiene
-        run: python scripts/ci_checks.py hygiene
