@@ -5,11 +5,24 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "deputy-shell-agents-mcp"
 version = "1.0.0"
+description = "Bounded, provider-contained Deputy Shell reconnaissance MCP runtime"
+readme = "README.md"
+license = "Apache-2.0"
+authors = [{name = "Deputy Shell Dev Team"}]
 requires-python = ">=3.10"
 dependencies = ["mcp>=2,<3"]
 
+[project.urls]
+Homepage = "https://deputyshell.com"
+Repository = "https://github.com/Simon95277/Deputy-Shell-MCP"
+
 [tool.setuptools]
-py-modules = ["server", "config", "snapshot"]
+py-modules = ["server", "config", "snapshot", "preflight"]
+include-package-data = false
 
 [tool.setuptools.packages.find]
-include = ["bridge*"]
+where = ["."]
+include = ["bridge"]
+
+[project.scripts]
+deputy-agents-mcp = "server:main"

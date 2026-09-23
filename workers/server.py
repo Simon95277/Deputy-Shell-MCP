@@ -959,5 +959,19 @@ def deputy_worker_cancel(run_id: str) -> dict[str, object]:
     return W2_ENGINE.cancel(run_id)
 
 
-if __name__ == "__main__":
+def main(argv=None):
+    args = list(__import__("sys").argv[1:] if argv is None else argv)
+    if args == ["--check"]:
+        from preflight import check
+        result = check()
+        print(json.dumps(result, sort_keys=True))
+        return 0 if result["status"] == "PASS" else 1
+    if args:
+        print("unsupported arguments; use --check or no arguments", file=__import__("sys").stderr)
+        return 2
     mcp.run(transport="stdio")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

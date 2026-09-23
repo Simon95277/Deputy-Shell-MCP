@@ -35,6 +35,7 @@ sessions/
 
 # Python / test artifacts
 **/__pycache__/
+*.egg-info/
 *.py[cod]
 *.log
 *.tmp

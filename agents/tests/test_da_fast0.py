@@ -29,7 +29,7 @@ class DeputyAgentsContractTests(unittest.TestCase):
     def test_mcp_child_ping_returns_pong(self):
         import server
         result = server.deputy_child_ping()
-        self.assertEqual(result["runtime_contract_version"], "DA-PROVIDER-1")
+        self.assertEqual(result["runtime_contract_version"], "DA-PACKAGING-1")
         self.assertEqual(result["python_child"]["status"], "PASS")
         self.assertEqual(result["python_child"]["stdout"].strip(), "pong")
         self.assertEqual(result["python_child"]["exit_code"], 0)
@@ -239,7 +239,7 @@ class DeputyAgentsContractTests(unittest.TestCase):
 
     def test_async_runtime_and_lifecycle_tools_are_exposed(self):
         import server
-        self.assertEqual(server.RUNTIME_CONTRACT_VERSION, "DA-PROVIDER-1")
+        self.assertEqual(server.RUNTIME_CONTRACT_VERSION, "DA-PACKAGING-1")
         for name in ("deputy_recon_start", "deputy_recon_status", "deputy_recon_cancel"):
             self.assertTrue(hasattr(server, name))
 
@@ -286,7 +286,7 @@ class DeputyAgentsContractTests(unittest.TestCase):
 
     def test_preparation_timeout_is_terminal_without_worker_launch(self):
         import bridge.executor as executor
-        with tempfile.TemporaryDirectory() as td, patch.object(executor, "LAB", Path(td)), patch.object(executor, "_prepare_snapshot", side_effect=executor.PreparationTimeout("PREPARATION_TIMEOUT")), patch.object(executor, "_cleanup"), patch.object(executor, "list_resources", return_value={"containers": [], "networks": []}):
+        with tempfile.TemporaryDirectory() as td, patch.object(executor, "LAB", Path(td)), patch.object(executor, "EVIDENCE_ROOT", Path(td) / "evidence"), patch.object(executor, "_prepare_snapshot", side_effect=executor.PreparationTimeout("PREPARATION_TIMEOUT")), patch.object(executor, "_cleanup"), patch.object(executor, "list_resources", return_value={"containers": [], "networks": []}):
             out = executor.execute("bounded", "DEPUTY_SHELL", job_id="prep-timeout-test")
         self.assertEqual(out["status"], "TIMEOUT")
         self.assertEqual(out["timeout_reason"], "PREPARATION_TIMEOUT")

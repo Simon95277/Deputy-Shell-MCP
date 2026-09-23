@@ -1,15 +1,16 @@
 # Deputy Workers MCP
 
-Standalone portable staging for the frozen DeputyWorkers V1.1 deterministic
-worker runtime. The server exposes a bounded lifecycle and exactly 22 registry
-operations; it does not expose generic shell, arbitrary process execution,
-generic ADB, or caller-selected paths and executables.
+Install the Workers runtime into a dedicated Python 3.10+ virtual environment:
 
-Deployment paths are server/operator configuration through `config.py` and the
-`DEPUTYWORKERS_*` environment variables. MCP requests select only registered
-operations and parameters. Device-mutating operations, including data clear,
-uninstall, instrumentation, and scoped push, require the existing frozen
-authorization contract.
+```powershell
+python -m venv .venv
+.venv\Scripts\python -m pip install .\workers
+.venv\Scripts\deputy-workers-mcp --check
+```
 
-Tests use synthetic repository, verifier, SDK, and device fixtures. They do not
-constitute physical Android validation.
+The installed command is independent of the source checkout and current working
+directory. Configure server-owned `DEPUTYWORKERS_*` environment variables for
+the Deputy Shell checkout, trusted Python, Android SDK/ADB, and runtime/evidence
+roots. The default runtime root is a per-user application-state directory
+outside the installed package. `--check` is read-only and does not install
+tools, pull images, or perform device operations.

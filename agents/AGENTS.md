@@ -234,7 +234,7 @@ without a milestone:
 - diagnostic tools are intentionally development-only and server-enabled;
 - host paths are server-owned and configurable through `DEPUTYAGENTS_*` environment variables;
 - the OpenCode writable-state tmpfs set may need future expansion;
-- packaging/installer ergonomics for other environments are not yet complete.
+- release CI and publication automation remain later roadmap work.
 
 ## Change discipline
 
@@ -250,7 +250,7 @@ When changing this project:
 Snapshot coherence is a separate contract: `DA-BYTE-COHERENCE-1` requires
 every included source file to have matching pre-copy, candidate, and
 post-copy SHA-256 values before a candidate is published as the master.
-The public runtime marker for this contract is `DA-PROVIDER-1`.
+The public runtime marker for this contract is `DA-PACKAGING-1`.
 7. keep cleanup mandatory;
 8. update `docs/ARCHITECTURE.md` and this file when behavior changes;
 9. bump `RUNTIME_CONTRACT_VERSION` when live MCP semantics change;

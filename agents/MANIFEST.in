@@ -1,0 +1,12 @@
+include pyproject.toml README.md
+include *.py
+recursive-include bridge *.py
+recursive-include tests *.py
+prune bridge-lab
+prune evidence
+prune local-snapshots
+prune deputy-shell-source
+prune deputy_shell_agents_mcp.egg-info
+global-exclude *.py[cod]
+global-exclude *.log
+global-exclude *.tmp
