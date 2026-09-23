@@ -19,8 +19,15 @@ class PETests(unittest.TestCase):
         for k in ("command","argv","executable"): self.assertFalse(self.valid(step("p",params={"pid":1,k:"x"})))
     def test_pe07_exact_pid(self): self.assertEqual(process.evidence(os.getpid())["pid"],os.getpid())
     def test_pe08_live_pass(self): self.assertEqual(process.evidence(os.getpid())["status"],"PASS")
-    def test_pe09_creation_identity(self): self.assertTrue(process.evidence(os.getpid()).get("creation_identity"))
-    def test_pe10_identity_matches(self): self.assertEqual(process.evidence(os.getpid())["creation_identity"],process.identity(os.getpid())["creation_identity"])
+    def test_pe09_creation_identity_is_forwarded(self):
+        pid = os.getpid()
+        with mock.patch.object(process, "identity", return_value={"pid": pid, "creation_identity": "synthetic-authoritative-token"}):
+            self.assertEqual(process.evidence(pid).get("creation_identity"), "synthetic-authoritative-token")
+    def test_pe10_identity_matches(self):
+        pid = os.getpid()
+        observed = process.identity(pid)
+        evidence = process.evidence(pid)
+        self.assertEqual(evidence["creation_identity"], observed.get("creation_identity"))
     def test_pe11_image_field(self): self.assertIn("image_path",process.evidence(os.getpid()))
     def test_pe12_dead_fail(self): self.assertEqual(process.evidence(2147483647)["reason"],"PROCESS_NOT_FOUND")
     def test_pe13_api_failure_blocked(self):

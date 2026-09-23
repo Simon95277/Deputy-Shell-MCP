@@ -19,6 +19,12 @@ against the same style of synthetic fixture. The Python 3.10 Windows job is
 the deterministic dependency qualification; Linux is a portability and
 compatibility gate.
 
+The process-creation identity token is a Windows-specific physical contract.
+Windows qualification checks it against the live Windows process API. Linux
+tests do not synthesize a host identity: they assert that POSIX liveness
+evidence has no Windows creation token, while a focused mock verifies that a
+provided authoritative token is preserved in bounded evidence.
+
 ## What the checks cover
 
 - Agents and Workers unit suites and compile/import checks.

@@ -66,9 +66,9 @@ jobs:
       - name: Prepare synthetic repository and SDK fixtures
         run: >-
           python scripts/ci_checks.py fixture
-          --root "${{ runner.temp }}/deputy-ci-fixture/repo"
-          --sdk "${{ runner.temp }}/deputy-ci-fixture/sdk"
-          --docker-stub "${{ runner.temp }}/deputy-ci-fixture/bin/docker-stub"
+          --root "${{ github.workspace }}/../deputy-ci-fixture/repo"
+          --sdk "${{ github.workspace }}/../deputy-ci-fixture/sdk"
+          --docker-stub "${{ github.workspace }}/../deputy-ci-fixture/bin/docker-stub"
       - name: Run full host-independent suites and contract checks
         run: |
           python -m compileall -q agents workers scripts/ci_checks.py
@@ -123,9 +123,9 @@ jobs:
         shell: pwsh
         run: >-
           python scripts/ci_checks.py fixture
-          --root "${{ runner.temp }}\deputy-ci-fixture\repo"
-          --sdk "${{ runner.temp }}\deputy-ci-fixture\sdk"
-          --docker-stub "${{ runner.temp }}\deputy-ci-fixture\bin\docker-stub.exe"
+          --root "${{ github.workspace }}/../deputy-ci-fixture/repo"
+          --sdk "${{ github.workspace }}/../deputy-ci-fixture/sdk"
+          --docker-stub "${{ github.workspace }}/../deputy-ci-fixture/bin/docker-stub.exe"
       - name: Run Windows Agents and Workers suites
         shell: pwsh
         env:

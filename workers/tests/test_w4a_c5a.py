@@ -42,7 +42,13 @@ class C5ATests(unittest.TestCase):
     def test_c2_1_separate_process(self):
         r=self.engine.start(self.hold_job()); self.assertNotEqual(r["worker_pid"],os.getpid()); self.release_worker()
     def test_c2_2_creation_identity_persisted(self):
-        r=self.engine.start(self.hold_job()); self.assertTrue(r["worker_identity"]["creation_identity"]); self.release_worker()
+        r=self.engine.start(self.hold_job())
+        if os.name == "nt":
+            self.assertTrue(r["worker_identity"]["creation_identity"])
+        else:
+            # POSIX liveness evidence intentionally has no Windows creation token.
+            self.assertEqual(r["worker_identity"], {"pid": r["worker_pid"]})
+        self.release_worker()
     def test_c2_3_async_start_running(self):
         r=self.engine.start(self.hold_job()); self.assertEqual(self.wait_running(r)["state"],"RUNNING"); self.release_worker()
     def test_c2_4_fresh_engine_recognizes_worker(self):
