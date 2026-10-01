@@ -1,0 +1,5 @@
+{
+  "case_id": "E3",
+  "purpose": "Deterministic JUnit interpretation.",
+  "prompt": "Inspect the APP_DEBUG_UNIT_TEST JUnit results.\n\nReturn JSON only:\n\n{\n  \"case_id\": \"E3\",\n  \"report_status\": \"PASS\"|\"FAIL\",\n  \"tests\": integer,\n  \"failures\": integer,\n  \"errors\": integer,\n  \"skipped\": integer,\n  \"duration_seconds\": number,\n  \"failing_testcases\": [{\"suite\": \"...\", \"classname\": \"...\", \"name\": \"...\", \"kind\": \"failure\"|\"error\"}]\n}\n\nSort failing_testcases by suite, classname, name and kind. Do not include stack traces or prose."
+}

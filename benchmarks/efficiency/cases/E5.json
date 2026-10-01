@@ -1,0 +1,5 @@
+{
+  "case_id": "E5",
+  "purpose": "Privacy/source-to-provider pipeline trace.",
+  "prompt": "Trace the source-to-provider pipeline implemented by the target repository. Use implementation behavior, not filenames or comments alone.\n\nThe ordered_stages array MUST contain exactly these identifiers in the order established by the implementation:\nSOURCE_SELECTION\nCANDIDATE_COPY\nSECRET_SCAN\nSOURCE_AFTER_VALIDATION\nBYTE_COHERENCE\nSNAPSHOT_PUBLICATION\nPROVIDER_INVOCATION\n\nReturn JSON only:\n\n{\n  \"case_id\": \"E5\",\n  \"ordered_stages\": [\"SOURCE_SELECTION\", \"CANDIDATE_COPY\", \"SECRET_SCAN\", \"SOURCE_AFTER_VALIDATION\", \"BYTE_COHERENCE\", \"SNAPSHOT_PUBLICATION\", \"PROVIDER_INVOCATION\"],\n  \"secret_scan_before_provider\": true|false,\n  \"source_after_validation_before_publication\": true|false,\n  \"caller_can_select_source_policy\": true|false,\n  \"caller_can_select_provider\": true|false,\n  \"caller_can_select_model\": true|false\n}\n\nDo not replace the identifiers with prose or synonyms."
+}

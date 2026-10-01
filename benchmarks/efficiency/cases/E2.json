@@ -1,0 +1,5 @@
+{
+  "case_id": "E2",
+  "purpose": "Typed repository-state evidence.",
+  "prompt": "Inspect the target repository state.\n\nReturn JSON only:\n\n{\n  \"case_id\": \"E2\",\n  \"head\": \"<40 character lowercase git sha>\",\n  \"branch\": \"<branch>\",\n  \"dirty\": true|false,\n  \"diff_check_pass\": true|false\n}\n\ndirty means tracked, staged or untracked working-tree changes exist. diff_check_pass means git diff --check succeeds."
+}
