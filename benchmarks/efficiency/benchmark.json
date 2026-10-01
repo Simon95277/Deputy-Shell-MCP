@@ -1,0 +1,22 @@
+{
+  "schema": "deputy.mcp.efficiency-benchmark.v1",
+  "benchmark_version": "EFFICIENCY-BENCHMARK-1",
+  "cases": ["E1", "E2", "E3", "E4", "E5", "E6"],
+  "fixture_branch": "benchmark/efficiency-v1",
+  "fixture_commit_time": "2020-01-01T00:00:00+00:00",
+  "fixture_identity": {"name": "Deputy Benchmark Fixture", "email": "benchmark-fixture"},
+  "campaign": {"repetitions": 5, "runs": 60, "order": "alternating case/arm/repetition, seeded deterministic rotation"},
+  "arms": {
+    "DIRECT": {"target_repository_visible_to_supervisor": true, "mcp_calls": 0, "agents": false, "workers": false},
+    "DEPUTY": {"target_repository_visible_to_supervisor": false, "server_owner_configured_target": true}
+  },
+  "deputy_case_requirements": {
+    "E1": {"agents": false, "workers": true, "operations": ["CHECK_FILE", "HASH_ARTIFACT"]},
+    "E2": {"agents": false, "workers": true, "operations": ["CAPTURE_REPO_STATE", "GIT_DIFF_CHECK"]},
+    "E3": {"agents": false, "workers": true, "operations": ["PARSE_JUNIT"]},
+    "E4": {"agents": true, "workers": false, "worker_profile": "RECON"},
+    "E5": {"agents": true, "workers": false, "worker_profile": "RECON"},
+    "E6": {"agents": true, "workers": true, "operations": ["CAPTURE_REPO_STATE", "CHECK_FILE", "HASH_ARTIFACT"], "final_decision": "SUPERVISOR"}
+  },
+  "telemetry_policy": "Missing authoritative telemetry remains null and is never estimated."
+}

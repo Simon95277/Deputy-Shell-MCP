@@ -9,6 +9,10 @@ deputy-shell-source/
 workers/runtime/
 workers/android-sdk/
 workers/deputy-shell-source/
+benchmarks/efficiency/evidence/
+benchmarks/efficiency/runtime/
+benchmarks/efficiency/raw/
+benchmarks/efficiency/tmp/
 agents/local-snapshots/
 agents/deputy-shell-source/
 agents/evidence/

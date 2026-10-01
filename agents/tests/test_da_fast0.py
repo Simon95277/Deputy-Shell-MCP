@@ -21,7 +21,7 @@ class DeputyAgentsContractTests(unittest.TestCase):
         self.assertTrue(importlib.metadata.version("mcp").startswith("2."))
         self.assertIsInstance(server.mcp, MCPServer)
         names = {tool.name for tool in asyncio.run(server.mcp.list_tools())}
-        self.assertEqual(names, {"deputy_recon", "deputy_recon_start", "deputy_recon_status", "deputy_recon_cancel"})
+        self.assertEqual(names, {"deputy_recon"})
 
     def test_server_compiles(self):
         subprocess.run([sys.executable, "-m", "py_compile", str(ROOT / "server.py")], check=True)
@@ -66,8 +66,9 @@ class DeputyAgentsContractTests(unittest.TestCase):
 
     def test_public_schema_source_is_bounded(self):
         text = (ROOT / "server.py").read_text(encoding="utf-8")
-        self.assertIn('Literal["BRIDGE_LAB", "DEPUTY_SHELL"]', text)
-        self.assertIn('worker_profile="RECON"', text)
+        self.assertIn('execute(goal=goal, workspace_id="DEPUTY_SHELL", worker_profile="RECON")', text)
+        self.assertIn("def deputy_recon(goal: str)", text)
+        self.assertNotIn("workspace_id: Literal", text[text.index("def deputy_recon(goal: str)"):text.index("def deputy_recon_start")])
         for forbidden in ("model:", "provider:", "docker", "container", "path:", "cwd:"):
             self.assertNotIn(forbidden, text.lower())
 

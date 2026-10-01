@@ -12,9 +12,9 @@ model through MCP.
 
 The supervising model chooses **intent**. The server chooses **authority**.
 
-A caller may ask a reconnaissance question and select one approved workspace.
-The caller may not choose arbitrary host paths, Docker arguments, networks,
-providers, models, worker profiles, timeouts, mounts, or executables.
+The caller may provide a reconnaissance goal. The server fixes the source
+repository and workspace. Callers may not choose host paths, Docker arguments,
+networks, providers, models, worker profiles, timeouts, mounts, or executables.
 
 The primary production use is read-only reconnaissance of the Deputy Shell
 repository through a fresh sanitized snapshot.
@@ -31,29 +31,19 @@ DeputyWorkers.
 
 ## Public MCP tools
 
-Normal work should prefer the asynchronous lifecycle:
+Normal model-facing work uses only `deputy_recon(goal)`. One call returns a
+terminal semantic result; the server performs the internal lifecycle,
+reconciliation, waiting, evidence persistence, and cleanup. The public tool
+does not accept a workspace, job ID, timeout, or lifecycle instruction. The
+server binds production reconnaissance to its configured Deputy Shell source.
 
-- `deputy_recon_start(goal, workspace_id)`
-- `deputy_recon_status(job_id)`
-- `deputy_recon_cancel(job_id)`
-
-Approved workspace IDs are:
-
-- `BRIDGE_LAB`
-- `DEPUTY_SHELL`
-
-The public server hardcodes the worker profile to `RECON`.
-
-`deputy_recon(goal, workspace_id)` is the legacy synchronous compatibility
-surface. Do not use it for substantial long-running work when the async
-lifecycle is available.
-
-The default production MCP surface contains exactly these four tools:
+The default production MCP surface contains exactly one tool:
 
 - `deputy_recon`
-- `deputy_recon_start`
-- `deputy_recon_status`
-- `deputy_recon_cancel`
+
+Owner-only lifecycle/status/cancellation tools are registered only when the
+server owner starts the process with `DEPUTYAGENTS_ENABLE_CONTROL_PLANE=1`.
+This is an environment-level administrative switch, not an MCP parameter.
 
 Development-only diagnostics are registered only when the server owner starts
 the process with `DEPUTYAGENTS_ENABLE_DIAGNOSTICS=1`:
@@ -67,6 +57,8 @@ workspace ID, or job payload. These tools are not reconnaissance workers and
 must not be used as general-purpose execution surfaces.
 
 Maximum concurrent async reconnaissance jobs: **2**.
+This limit applies to owner-enabled control-plane use, not a caller-managed
+normal model workflow.
 
 ## Deputy Shell snapshot boundary
 

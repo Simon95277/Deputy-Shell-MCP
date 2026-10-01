@@ -1,0 +1,1 @@
+Deputy efficiency benchmark fixture payload v1.

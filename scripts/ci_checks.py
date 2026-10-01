@@ -21,20 +21,12 @@ from pathlib import Path, PurePosixPath
 ROOT = Path(__file__).resolve().parents[1]
 AGENTS_TOOLS = {
     "deputy_recon",
-    "deputy_recon_start",
-    "deputy_recon_status",
-    "deputy_recon_cancel",
 }
 WORKERS_TOOLS = {
-    "deputy_worker_status",
-    "deputy_worker_start",
-    "deputy_worker_run_status",
-    "deputy_worker_result",
-    "deputy_worker_cancel",
-    "deputy_worker_smoke",
-    "deputy_worker_exact_payload_smoke",
+    "deputy_observe",
+    "deputy_act",
 }
-EXPECTED_TESTS = {"agents": 177, "workers": 343}
+EXPECTED_TESTS = {"agents": 179, "workers": 355}
 FORBIDDEN_ARCHIVE_PARTS = {
     ".git", ".venv", "evidence", "runtime", "runs", "logs", "snapshots",
     "local-snapshots", "bridge-lab", "deputy-shell-source", "android-sdk",
@@ -146,6 +138,7 @@ def test_suite(args: argparse.Namespace) -> None:
 def contract_check() -> None:
     env = os.environ.copy()
     env.pop("DEPUTYAGENTS_ENABLE_DIAGNOSTICS", None)
+    env.pop("DEPUTYAGENTS_ENABLE_CONTROL_PLANE", None)
     probe = (
         "import asyncio,json,server; "
         "print(json.dumps(sorted(t.name for t in asyncio.run(server.mcp.list_tools()))))"
@@ -208,7 +201,7 @@ def contract_check() -> None:
         fail("contract consistency failed: " + ", ".join(k for k, ok in checks.items() if not ok))
 
     docs = {
-        ROOT / "README.md": ("opencode", "muse-spark-1.3-contributor-free", "deputy_recon_cancel"),
+        ROOT / "README.md": ("opencode", "muse-spark-1.3-contributor-free", "deputy_recon(goal)", "deputy_observe", "deputy_act"),
         ROOT / "agents" / "docs" / "ARCHITECTURE.md": (
             "DA-PRIVACY-1", "DA-BYTE-COHERENCE-1", "DA-PRIVACY-1-positive-policy-v1",
         ),

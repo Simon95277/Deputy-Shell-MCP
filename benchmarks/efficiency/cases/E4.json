@@ -1,0 +1,5 @@
+{
+  "case_id": "E4",
+  "purpose": "Semantic authority-boundary reconnaissance.",
+  "prompt": "Determine the authority boundary implemented by the target repository.\n\nReturn JSON only:\n\n{\n  \"case_id\": \"E4\",\n  \"facts\": {\n    \"caller_selects_intent\": {\"value\": true|false, \"evidence\": \"<repository-relative path>\"},\n    \"caller_selects_executable\": {\"value\": true|false, \"evidence\": \"<repository-relative path>\"},\n    \"caller_selects_argv\": {\"value\": true|false, \"evidence\": \"<repository-relative path>\"},\n    \"caller_selects_arbitrary_path\": {\"value\": true|false, \"evidence\": \"<repository-relative path>\"},\n    \"registry_allowlist_enforced\": {\"value\": true|false, \"evidence\": \"<repository-relative path>\"},\n    \"generic_shell_exposed\": {\"value\": true|false, \"evidence\": \"<repository-relative path>\"}\n  }\n}\n\nEvidence must refer to files actually inspected."
+}

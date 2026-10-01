@@ -30,7 +30,9 @@ provided authoritative token is preserved in bounded evidence.
 ## What the checks cover
 
 - Agents and Workers unit suites and compile/import checks.
-- The exact four production Agents tools, default-disabled diagnostics,
+- Exactly one default production Agents tool and two default Workers tools;
+  owner-only control-plane tools are absent by default; diagnostics remain
+  default-disabled.
   provider/model contract, runtime/coherence/snapshot markers, and the
   22-entry Workers registry.
 - Windows CPython 3.10 with the checked-in MCP 2.2.0 qualification lock, plus

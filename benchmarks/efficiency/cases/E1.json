@@ -1,0 +1,5 @@
+{
+  "case_id": "E1",
+  "purpose": "Single-file fact; deterministic overhead floor.",
+  "prompt": "Inspect tools/benchmark/payload.txt in the target repository.\n\nReturn JSON only with exactly:\n\n{\n  \"case_id\": \"E1\",\n  \"exists\": true|false,\n  \"size_bytes\": integer|null,\n  \"sha256\": \"lowercase sha256\"|null\n}\n\nUse observed evidence only. Do not estimate or infer missing values."
+}

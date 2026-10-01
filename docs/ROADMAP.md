@@ -27,6 +27,15 @@
   and manual release-candidate qualification passed. Candidate artifacts are
   checksummed and uploaded ephemerally; no release, tag, or PyPI publication
   was performed.
-- **Phase #10 — privacy and generalization: IN PROGRESS.**
-- Phase #11: efficiency benchmark.
+- **Phase #10 — privacy and generalization: COMPLETED.**
+- **Phase #11 — efficiency benchmark: COMPLETED.** The control-tower redesign reduced
+  Workers E1-E3 campaign supervisor cost by 51.99% (2,132,559 -> 1,023,874)
+  and model-visible MCP calls from 39 to 22. Across available valid paired
+  E1-E6 comparisons, Deputy supervisor usage was 0.94% lower overall; E6 alone
+  was 10.41% higher, so efficiency depends on workload shape rather than MCP use
+  being intrinsically cheaper.
+- **Post-Phase #11 routing refinement: PLANNED.** Add a server-owned refusal /
+  direct-routing policy for work that cannot materially compress the evidence
+  Luna would otherwise consume. Security and authority requirements take
+  precedence over efficiency routing.
 - Phase #12: v1.0 maturity gate.

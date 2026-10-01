@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "deputy.mcp.efficiency-answers.v1",
+  "oneOf": [
+    {"$ref": "#/$defs/E1"}, {"$ref": "#/$defs/E2"}, {"$ref": "#/$defs/E3"},
+    {"$ref": "#/$defs/E4"}, {"$ref": "#/$defs/E5"}, {"$ref": "#/$defs/E6A"}, {"$ref": "#/$defs/E6B"}
+  ],
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "E1": {
+      "type": "object", "required": ["case_id", "exists", "size_bytes", "sha256"],
+      "properties": {"case_id": {"const": "E1"}, "exists": {"type": "boolean"},
+        "size_bytes": {"type": ["integer", "null"], "minimum": 0},
+        "sha256": {"anyOf": [{"$ref": "#/$defs/sha"}, {"type": "null"}]}},
+      "additionalProperties": false
+    },
+    "E2": {
+      "type": "object", "required": ["case_id", "head", "branch", "dirty", "diff_check_pass"],
+      "properties": {"case_id": {"const": "E2"}, "head": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "branch": {"type": "string", "minLength": 1}, "dirty": {"type": "boolean"}, "diff_check_pass": {"type": "boolean"}},
+      "additionalProperties": false
+    },
+    "failingTestcase": {
+      "type": "object", "required": ["suite", "classname", "name", "kind"],
+      "properties": {"suite": {"type": "string"}, "classname": {"type": "string"},
+        "name": {"type": "string"}, "kind": {"enum": ["failure", "error"]}},
+      "additionalProperties": false
+    },
+    "E3": {
+      "type": "object", "required": ["case_id", "report_status", "tests", "failures", "errors", "skipped", "duration_seconds", "failing_testcases"],
+      "properties": {"case_id": {"const": "E3"}, "report_status": {"enum": ["PASS", "FAIL"]},
+        "tests": {"type": "integer", "minimum": 0}, "failures": {"type": "integer", "minimum": 0},
+        "errors": {"type": "integer", "minimum": 0}, "skipped": {"type": "integer", "minimum": 0},
+        "duration_seconds": {"type": "number", "minimum": 0},
+        "failing_testcases": {"type": "array", "items": {"$ref": "#/$defs/failingTestcase"}}},
+      "additionalProperties": false
+    },
+    "fact": {
+      "type": "object", "required": ["value", "evidence"],
+      "properties": {"value": {"type": "boolean"}, "evidence": {"type": "string", "minLength": 1}},
+      "additionalProperties": false
+    },
+    "E4": {
+      "type": "object", "required": ["case_id", "facts"],
+      "properties": {"case_id": {"const": "E4"},
+        "facts": {"type": "object", "required": ["caller_selects_intent", "caller_selects_executable", "caller_selects_argv", "caller_selects_arbitrary_path", "registry_allowlist_enforced", "generic_shell_exposed"],
+          "properties": {"caller_selects_intent": {"$ref": "#/$defs/fact"}, "caller_selects_executable": {"$ref": "#/$defs/fact"},
+            "caller_selects_argv": {"$ref": "#/$defs/fact"}, "caller_selects_arbitrary_path": {"$ref": "#/$defs/fact"},
+            "registry_allowlist_enforced": {"$ref": "#/$defs/fact"}, "generic_shell_exposed": {"$ref": "#/$defs/fact"}},
+          "additionalProperties": false}},
+      "additionalProperties": false
+    },
+    "E5": {
+      "type": "object", "required": ["case_id", "ordered_stages", "secret_scan_before_provider", "source_after_validation_before_publication", "caller_can_select_source_policy", "caller_can_select_provider", "caller_can_select_model"],
+      "properties": {"case_id": {"const": "E5"}, "ordered_stages": {"type": "array", "items": {"type": "string"}},
+        "secret_scan_before_provider": {"type": "boolean"}, "source_after_validation_before_publication": {"type": "boolean"},
+        "caller_can_select_source_policy": {"type": "boolean"}, "caller_can_select_provider": {"type": "boolean"}, "caller_can_select_model": {"type": "boolean"}},
+      "additionalProperties": false
+    },
+    "E6A": {
+      "type": "object", "required": ["case_id", "stage", "repository_clean", "proposal_exists", "proposal_sha256", "architecture_ready"],
+      "properties": {"case_id": {"const": "E6"}, "stage": {"const": "DECISION_READY"},
+        "repository_clean": {"type": "boolean"}, "proposal_exists": {"type": "boolean"},
+        "proposal_sha256": {"$ref": "#/$defs/sha"}, "architecture_ready": {"type": "boolean"}},
+      "additionalProperties": false
+    },
+    "E6B": {
+      "type": "object", "required": ["case_id", "decision", "violations"],
+      "properties": {"case_id": {"const": "E6"}, "decision": {"enum": ["ACCEPT", "REJECT"]},
+        "violations": {"type": "array", "items": {"type": "string"}}},
+      "additionalProperties": false
+    }
+  }
+}

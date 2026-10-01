@@ -1,5 +1,5 @@
 from __future__ import annotations
-import hashlib, json, os, shutil, subprocess, tempfile, threading, time, uuid
+import hashlib, json, os, shutil, subprocess, tempfile, threading, time, traceback, uuid
 from pathlib import Path
 from .core import LAB, DOCKER, OPENCODE_IMAGE, SQUID_IMAGE, WORKSPACES, WORKERS, build_snapshot, build_argv, parse_events, result, validate_request
 from .provider_contract import MODEL_ID, MODEL_SELECTOR, PROVIDER_HOST, PROVIDER_ID, evidence, inline_config_content, validate_contract
@@ -103,6 +103,37 @@ def _capture_worker_state(worker, evdir):
 
 def _capture_process_evidence(stdout, stderr, evdir):
     return {"stdout": _bounded_write(evdir / "worker-stdout.txt", stdout or ""), "stderr": _bounded_write(evdir / "worker-stderr.txt", stderr or "")}
+
+def _write_containment_error(evdir, exc, state, resources):
+    """Persist bounded local-only diagnostics without affecting public results."""
+    proc = state.get("process")
+    child_return_code = None
+    if proc is not None:
+        try:
+            child_return_code = proc.poll()
+        except Exception:
+            pass
+    worker_state = None
+    if proc is not None:
+        try:
+            worker_state = _capture_worker_state(resources["worker"], evdir)
+        except Exception:
+            worker_state = {"status": "UNAVAILABLE"}
+    payload = {
+        "exception_type": type(exc).__name__[:256],
+        "exception_message": str(exc)[:EVIDENCE_LIMIT],
+        "traceback": "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))[-EVIDENCE_LIMIT:],
+        "execution_state": str(state.get("execution_state", "UNKNOWN"))[:128],
+        "preparation_phase": str(state.get("preparation_phase", "UNKNOWN"))[:128],
+        "child_process_launched": proc is not None,
+        "child_return_code": child_return_code,
+        "session_id": str(state["session_id"])[:256] if state.get("session_id") else None,
+        "worker_state": worker_state,
+    }
+    target = evdir / "containment-error.json"
+    temporary = evdir / "containment-error.json.tmp"
+    temporary.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    temporary.replace(target)
 
 MEANINGFUL_PROGRESS_TYPES = {"session", "step_start", "tool_use", "tool_result", "step_finish", "text", "output", "message", "error"}
 
@@ -329,7 +360,12 @@ def execute(goal, workspace_id="BRIDGE_LAB", worker_profile="RECON", inject_fail
         marks["total_ms"]=int((time.monotonic()-started)*1000); out=result("CANCELLED",job,workspace_id,None,"",marks["total_ms"],exit_code,manifest or {"schema":"deputy.recon.snapshot.v1","file_count":0,"total_bytes":0},"CANCELLED",marks,evidence()); out["execution_state"]="PREPARING"; out["preparation_phase"] = state.get("preparation_phase"); out["preparation_elapsed_ms"] = marks["total_ms"]; (evdir/"result.json").write_text(json.dumps(out,indent=2),encoding="utf-8"); return out
     except PreparationTimeout:
         marks["total_ms"]=int((time.monotonic()-started)*1000); out=result("TIMEOUT",job,workspace_id,None,"",marks["total_ms"],exit_code,manifest or {"schema":"deputy.recon.snapshot.v1","file_count":0,"total_bytes":0},"PREPARATION_TIMEOUT",marks,evidence()); out["timeout_reason"]="PREPARATION_TIMEOUT"; out["execution_state"]="PREPARING"; out["preparation_phase"] = state.get("preparation_phase"); out["preparation_elapsed_ms"] = marks["total_ms"]; (evdir/"result.json").write_text(json.dumps(out,indent=2),encoding="utf-8"); return out
-    except Exception:
+    except Exception as exc:
+        try:
+            _write_containment_error(evdir, exc, state, res)
+        except Exception:
+            # Diagnostics are best-effort; preserve the sanitized result and cleanup path.
+            pass
         marks["total_ms"]=int((time.monotonic()-started)*1000); out=result("CONTAINMENT_ERROR",job,workspace_id,None,"",marks["total_ms"],exit_code,manifest or {"schema":"deputy.recon.snapshot.v1","file_count":0,"total_bytes":0},"CONTAINMENT_ERROR",marks,evidence()); (evdir/"result.json").write_text(json.dumps(out,indent=2),encoding="utf-8"); return out
     finally:
         _cleanup(res)
