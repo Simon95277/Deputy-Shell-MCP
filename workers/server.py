@@ -7,6 +7,7 @@ import tempfile
 import time
 import re
 from pathlib import Path
+from mcp.types import ToolAnnotations
 
 from mcp.server import MCPServer
 from worker_v1 import DurableRunEngine, ProductionRunEngine
@@ -21,6 +22,10 @@ from worker_v1.capabilities import (
     load_registry,
 )
 from worker_v1.privacy import public_result
+from worker_v1.service import (
+    ACT_OPERATIONS, OBSERVE_OPERATIONS, ActRequest, ObserveRequest, WorkerService,
+    worker_control_plane_enabled,
+)
 from config import EVIDENCE_ROOT, RUNTIME_ROOT, TRUSTED_PYTHON
 
 
@@ -207,6 +212,8 @@ EVIDENCE_FILES = {
 mcp = MCPServer(SERVER_NAME)
 W2_ENGINE = DurableRunEngine(BASE_DIR)
 PRODUCTION_ENGINE = ProductionRunEngine(BASE_DIR)
+WORKER_SERVICE = WorkerService(PRODUCTION_ENGINE)
+CONTROL_PLANE_ENABLED = worker_control_plane_enabled()
 
 
 def sha256_file(path: Path) -> str:
@@ -808,7 +815,6 @@ def run_exact_payload_smoke_internal() -> dict[str, object]:
     return base
 
 
-@mcp.tool()
 def deputy_worker_status() -> dict[str, object]:
     """
     Verify the local Deputy Workers MCP bridge and expose its frozen
@@ -879,7 +885,6 @@ def deputy_worker_status() -> dict[str, object]:
     })
 
 
-@mcp.tool()
 def deputy_worker_smoke() -> dict[str, object]:
     """
     Run one synthetic end-to-end Hermes delegation test.
@@ -896,13 +901,11 @@ def deputy_worker_smoke() -> dict[str, object]:
     return public_result(run_worker_smoke_internal())
 
 
-@mcp.tool()
 def deputy_worker_exact_payload_smoke() -> dict[str, object]:
     """Run the synthetic exact-authority file-payload delegation smoke."""
     return public_result(run_exact_payload_smoke_internal())
 
 
-@mcp.tool()
 def deputy_worker_start(steps: list[dict[str, object]]) -> dict[str, object]:
     """Start a frozen-registry production typed repository-bound job.
 
@@ -943,22 +946,59 @@ def deputy_worker_start(steps: list[dict[str, object]]) -> dict[str, object]:
         return {"status": "REJECTED", "reason": "JOB_SCHEMA_INVALID"}
 
 
-@mcp.tool()
 def deputy_worker_run_status(run_id: str) -> dict[str, object]:
     if str(run_id).startswith("production-"): return public_result(PRODUCTION_ENGINE.status(run_id))
     return public_result(W2_ENGINE.status(run_id))
 
 
-@mcp.tool()
 def deputy_worker_result(run_id: str) -> dict[str, object]:
     if str(run_id).startswith("production-"): return public_result(PRODUCTION_ENGINE.result(run_id))
     return public_result(W2_ENGINE.result(run_id))
 
 
-@mcp.tool()
 def deputy_worker_cancel(run_id: str) -> dict[str, object]:
     if str(run_id).startswith("production-"): return public_result(PRODUCTION_ENGINE.cancel(run_id))
     return public_result(W2_ENGINE.cancel(run_id))
+
+
+def deputy_observe(request: ObserveRequest) -> dict[str, object]:
+    """Perform one bounded observation through a registered operation."""
+    return public_result(WORKER_SERVICE.execute(request, OBSERVE_OPERATIONS))
+
+
+def deputy_act(request: ActRequest) -> dict[str, object]:
+    """Perform one bounded action through a registered operation."""
+    return public_result(WORKER_SERVICE.execute(request, ACT_OPERATIONS))
+
+
+mcp.tool(
+    description=(
+        "Run one bounded observation using a single registered operation. The tool schema "
+        "is the capability catalog. The server binds the repository/device and runs the "
+        "operation internally to a terminal semantic outcome; no run ID or polling is exposed."
+    ),
+    annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True),
+)(deputy_observe)
+mcp.tool(
+    description=(
+        "Run one bounded state-changing or execution operation using registered authority. "
+        "The server owns repository/device binding, execution, lifecycle and evidence and "
+        "returns one terminal semantic outcome."
+    ),
+    annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=True),
+)(deputy_act)
+
+if CONTROL_PLANE_ENABLED:
+    for _name, _function, _description in (
+        ("deputy_worker_status", deputy_worker_status, "Owner diagnostic: inspect Worker runtime and registry status."),
+        ("deputy_worker_smoke", deputy_worker_smoke, "Owner diagnostic: run the synthetic legacy Worker smoke."),
+        ("deputy_worker_exact_payload_smoke", deputy_worker_exact_payload_smoke, "Owner diagnostic: run the synthetic exact-payload smoke."),
+        ("deputy_worker_start", deputy_worker_start, "Owner control plane: start a typed internal Worker job."),
+        ("deputy_worker_run_status", deputy_worker_run_status, "Owner control plane: inspect an internal Worker run."),
+        ("deputy_worker_result", deputy_worker_result, "Owner control plane: retrieve an internal Worker result."),
+        ("deputy_worker_cancel", deputy_worker_cancel, "Owner control plane: cancel an internal Worker run."),
+    ):
+        mcp.tool(name=_name, description=_description)(_function)
 
 
 def main(argv=None):

@@ -19,11 +19,12 @@ cannot replace it, and no provider credential environment is forwarded. When
 OpenCode does not emit identity fields, results report that limitation rather
 than fabricating runtime verification.
 
-The default Agents MCP surface contains the four reconnaissance lifecycle
-tools: `deputy_recon`, `deputy_recon_start`, `deputy_recon_status`, and
-`deputy_recon_cancel`. The fixed `deputy_child_ping` and `deputy_git_probe`
-diagnostics are development-only and appear only when the server owner sets
-`DEPUTYAGENTS_ENABLE_DIAGNOSTICS=1`; callers cannot enable them.
+The default Agents MCP surface contains only `deputy_recon(goal)`. The server
+binds the configured source and workspace, runs the internal lifecycle, and
+returns a concise semantic outcome. Async lifecycle, status, and cancellation
+tools are owner-only and appear only when the server owner sets
+`DEPUTYAGENTS_ENABLE_CONTROL_PLANE=1` before startup. Diagnostics remain
+separately gated by `DEPUTYAGENTS_ENABLE_DIAGNOSTICS=1`.
 
 ## Workers
 
@@ -35,6 +36,11 @@ selected executables are not exposed.
 
 The model chooses intent; the server chooses repository binding, executable,
 parameters, and authority. Agents and Workers are separate MCP systems.
+Workers normally expose only `deputy_observe` and `deputy_act`; each accepts a
+single typed registered operation and returns its terminal semantic result.
+Run creation, polling, process identity, and evidence retrieval stay internal.
+Owner-only control-plane tools require `DEPUTYWORKERS_ENABLE_CONTROL_PLANE=1`
+before server startup.
 
 See `docs/ARCHITECTURE.md`, `docs/THREAT_MODEL.md`, and the subsystem
 documentation for implementation details.

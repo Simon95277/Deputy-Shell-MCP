@@ -77,7 +77,7 @@ class SourcePolicyAndPrivacyTests(unittest.TestCase):
         import asyncio
         import server
         public_tools = asyncio.run(server.mcp.list_tools())
-        self.assertEqual(len(public_tools), 4)
+        self.assertEqual({tool.name for tool in public_tools}, {"deputy_recon"})
         self.assertNotIn("source_policy", json.dumps([tool.input_schema for tool in public_tools]))
 
     def test_goal_text_cannot_change_source_policy(self):

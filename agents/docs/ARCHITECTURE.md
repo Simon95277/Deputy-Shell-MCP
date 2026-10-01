@@ -68,7 +68,7 @@ The production DEPUTY_SHELL flow is:
 ```text
 supervising model / MCP client
         |
-        | deputy_recon_start(goal, "DEPUTY_SHELL")
+        | deputy_recon(goal)
         v
 server.py
         |
@@ -223,9 +223,21 @@ Git-state behavior.
 
 ---
 
-## 4. Public MCP surface
+## 4. MCP surface and control-plane separation
 
-### 4.1 `deputy_recon_start(goal, workspace_id)`
+### 4.1 Default model-facing tool: `deputy_recon(goal)`
+
+The normal production tool accepts only a natural-language goal. The server
+selects the configured production workspace/source and performs preparation,
+execution, waiting, persistence, reconciliation, and cleanup internally. A
+single call returns a terminal semantic outcome; run IDs and polling are not
+part of the normal model-facing protocol.
+
+### 4.2 Owner-only control plane: `deputy_recon_start(goal, workspace_id)`
+
+This asynchronous lifecycle API is available only when the server owner
+starts the process with `DEPUTYAGENTS_ENABLE_CONTROL_PLANE=1`. It is not
+registered in the default production surface.
 
 Preferred entry point for real work.
 
@@ -265,7 +277,7 @@ Initial response contains:
 - runtime contract version;
 - workspace ID.
 
-### 4.2 `deputy_recon_status(job_id)`
+### 4.3 Owner-only `deputy_recon_status(job_id)`
 
 Returns either:
 
@@ -287,7 +299,7 @@ Relevant live fields can include:
 - `last_progress_age_ms`;
 - `active_operation_age_ms`.
 
-### 4.3 `deputy_recon_cancel(job_id)`
+### 4.4 Owner-only `deputy_recon_cancel(job_id)`
 
 If unknown:
 
@@ -311,15 +323,12 @@ job in `ACTIVE`. The public layer can report `CANCELLING` while the internal
 cancel call sees `NOT_FOUND`. This is hardening debt, not a reason to widen
 authority.
 
-### 4.4 `deputy_recon(goal, workspace_id)`
+### 4.5 Lifecycle implementation
 
-Legacy synchronous compatibility surface.
-
-It executes the same bounded executor directly and appends the runtime
-contract version.
-
-For substantial work, prefer the async lifecycle because long model sessions
-can exceed normal MCP request durations.
+The synchronous model-facing tool uses the same bounded executor and returns
+only a projected semantic outcome. Async APIs remain useful to an owner or
+admin client that explicitly enables the control plane, but normal model use
+must not start, poll, or cancel lifecycle jobs.
 
 ### 4.5 Development diagnostic: `deputy_child_ping()`
 
@@ -1346,14 +1355,16 @@ request. The executor observes that request before preparation proceeds, so
 early cancellation is not lost. Cancellation and reconciliation are
 idempotent.
 
-### Diagnostic tool exposure
+### Default and owner-enabled tool inventories
 
-The default production MCP surface contains exactly four tools: the legacy
-synchronous `deputy_recon` compatibility tool and the three asynchronous
-lifecycle tools. `deputy_child_ping` and `deputy_git_probe` remain available
-for server-owner development diagnostics only, enabled by the exact
-`DEPUTYAGENTS_ENABLE_DIAGNOSTICS=1` process setting. They are not caller-
-selectable and are not part of production authority.
+The default production MCP surface contains exactly one tool: `deputy_recon`.
+Async lifecycle/status/cancellation tools are owner-only and require the exact
+`DEPUTYAGENTS_ENABLE_CONTROL_PLANE=1` process setting. Diagnostics
+`deputy_child_ping` and `deputy_git_probe` remain separately gated by
+`DEPUTYAGENTS_ENABLE_DIAGNOSTICS=1`. Neither flag is an MCP parameter, and
+neither can be enabled by a caller goal. The normal protocol excludes
+control-plane state; local durable evidence and internal lifecycle behavior
+remain available to the server owner.
 
 ### Path configuration and packaging
 
@@ -1499,12 +1510,10 @@ The implementation and tests remain authoritative.
 For a normal Deputy Shell engineering milestone:
 
 1. decide whether independent AI reconnaissance will materially help;
-2. if yes, call `deputy_recon_start` with a narrow read-only goal;
-3. retain the returned job ID;
-4. poll only that job;
-5. treat the report as evidence, not authority;
-6. verify important findings directly or with deterministic DeputyWorkers;
-7. make the engineering decision at the supervising-model level.
+2. if yes, call `deputy_recon` once with a narrow read-only goal;
+3. treat its terminal report as evidence, not authority;
+4. verify important findings directly or with deterministic DeputyWorkers;
+5. make the engineering decision at the supervising-model level.
 
 A subagent should be used for investigation, not as a way to evade the
 supervisor's responsibility.

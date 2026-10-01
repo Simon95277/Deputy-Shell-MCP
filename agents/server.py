@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Literal
 
 from mcp.server import MCPServer
+from mcp.types import ToolAnnotations
 
 import os
 import subprocess
@@ -24,6 +25,8 @@ from privacy import public_error_code
 mcp = MCPServer("DeputyAgentsMCP")
 DIAGNOSTICS_ENVIRONMENT_VARIABLE = "DEPUTYAGENTS_ENABLE_DIAGNOSTICS"
 DIAGNOSTICS_ENABLED = os.environ.get(DIAGNOSTICS_ENVIRONMENT_VARIABLE) == "1"
+CONTROL_PLANE_ENVIRONMENT_VARIABLE = "DEPUTYAGENTS_ENABLE_CONTROL_PLANE"
+CONTROL_PLANE_ENABLED = os.environ.get(CONTROL_PLANE_ENVIRONMENT_VARIABLE) == "1"
 MAX_CONCURRENT_RECON = 2
 _JOBS = {}
 _JOBS_LOCK = threading.Lock()
@@ -157,14 +160,36 @@ def _public_job_state(job):
     return {"status": "RUNNING", "job_id": job["job_id"], "workspace_id": job["workspace_id"], "runtime_contract_version": RUNTIME_CONTRACT_VERSION, "session_id": live.get("session_id"), "execution_state": live.get("execution_state", job.get("execution_state", "PREPARING")), "elapsed_ms": int((time.time() - job["created_at"]) * 1000), "preparation_phase": live.get("preparation_phase", job.get("preparation_phase")), "preparation_elapsed_ms": int((time.time() - job["created_at"]) * 1000), "snapshot_lock_wait_ms": live.get("snapshot_lock_wait_ms"), "last_progress_type": live.get("last_progress_type"), "last_progress_age_ms": live.get("last_progress_age_ms"), "active_operation_age_ms": live.get("active_operation_age_ms")}
 
 
-@mcp.tool(description="Run one bounded read-only reconnaissance request through the fixed RECON agent against an approved sanitized workspace snapshot.")
-def deputy_recon(goal: str, workspace_id: Literal["BRIDGE_LAB", "DEPUTY_SHELL"]) -> dict:
-    """Delegate bounded synthetic reconnaissance to the contained OpenCode agent."""
-    output = execute(goal=goal, workspace_id=workspace_id, worker_profile="RECON")
-    output["runtime_contract_version"] = RUNTIME_CONTRACT_VERSION
-    return output
+def _public_recon_result(output: dict) -> dict:
+    status = output.get("status")
+    if status == "PASS":
+        report = output.get("text")
+        if not isinstance(report, str):
+            return {"status": "UNPROVEN", "code": "RECON_OUTPUT_UNAVAILABLE", "retryable": False}
+        import re
+        if re.search(r"(?i)\b[A-Z]:[\\/]|(?<![A-Za-z0-9_])/(?:Users|home|tmp|var|opt|root|workspace|private|mnt)/", report):
+            report = "[HOST_PATH_REDACTED]"
+        return {"status": "PASS", "report": report[:8192]}
+    codes = {
+        "TIMEOUT": "RECON_TIMEOUT", "MODEL_ERROR": "PROVIDER_UNAVAILABLE",
+        "CLIENT_ERROR": "RECON_CLIENT_ERROR", "OUTPUT_INVALID": "RECON_OUTPUT_INVALID",
+        "IDENTITY_MISMATCH": "PROVIDER_CONTRACT_INVALID", "CONTAINMENT_ERROR": "CONTAINMENT_ERROR",
+        "INTERRUPTED": "RECON_INTERRUPTED", "CANCELLED": "RECON_CANCELLED",
+    }
+    safe_status = status if status in {"FAIL", "BLOCKED", "UNPROVEN", "CONTRADICTION", "CANCELLED"} else "BLOCKED"
+    return {"status": safe_status, "code": codes.get(status, "RECON_UNAVAILABLE"),
+            "retryable": status in {"TIMEOUT", "MODEL_ERROR", "CLIENT_ERROR", "CONTAINMENT_ERROR", "INTERRUPTED"}}
 
-@mcp.tool(description="Start one bounded asynchronous read-only reconnaissance job; returns a job ID without waiting for model completion.")
+
+@mcp.tool(description="Inspect the server-configured repository snapshot for one bounded read-only reconnaissance goal. Source selection, provider, model, containment and lifecycle are server-owned; returns one terminal report.", annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=False, openWorldHint=True))
+def deputy_recon(goal: str) -> dict:
+    """Run bounded reconnaissance against the server-configured source only."""
+    try:
+        output = execute(goal=goal, workspace_id="DEPUTY_SHELL", worker_profile="RECON")
+    except Exception:
+        return {"status": "BLOCKED", "code": "RECON_UNAVAILABLE", "retryable": True}
+    return _public_recon_result(output)
+
 def deputy_recon_start(goal: str, workspace_id: Literal["BRIDGE_LAB", "DEPUTY_SHELL"]) -> dict:
     with _JOBS_LOCK:
         active = sum(1 for job in _JOBS.values() if job.get("status") in {"STARTED", "RUNNING", "CANCELLING"})
@@ -176,7 +201,6 @@ def deputy_recon_start(goal: str, workspace_id: Literal["BRIDGE_LAB", "DEPUTY_SH
     threading.Thread(target=_run_async, args=(job_id, goal, workspace_id), daemon=True, name=f"deputy-recon-{job_id[:8]}").start()
     return {"status": "STARTED", "job_id": job_id, "runtime_contract_version": RUNTIME_CONTRACT_VERSION, "workspace_id": workspace_id}
 
-@mcp.tool(description="Return bounded status or the durable final result for an asynchronous reconnaissance job.")
 def deputy_recon_status(job_id: str) -> dict:
     with _JOBS_LOCK:
         job = _JOBS.get(job_id)
@@ -192,7 +216,6 @@ def deputy_recon_status(job_id: str) -> dict:
                 return {"status": "NOT_FOUND", "job_id": job_id, "runtime_contract_version": RUNTIME_CONTRACT_VERSION}
         return _public_job_state(dict(job))
 
-@mcp.tool(description="Request cancellation of one asynchronous reconnaissance job by its server-issued job ID.")
 def deputy_recon_cancel(job_id: str) -> dict:
     with _JOBS_LOCK:
         job = _JOBS.get(job_id)
@@ -230,6 +253,11 @@ def deputy_child_ping() -> dict:
     return {"runtime_contract_version": RUNTIME_CONTRACT_VERSION, "python_child": run_bounded([sys.executable, "-I", "-S", "-u", str(child)], sys.executable),
             "cmd_child": run_bounded(native, native_name)}
 
+
+if CONTROL_PLANE_ENABLED:
+    mcp.tool(description="Owner control plane: start one asynchronous reconnaissance job.")(deputy_recon_start)
+    mcp.tool(description="Owner control plane: inspect asynchronous reconnaissance state/result.")(deputy_recon_status)
+    mcp.tool(description="Owner control plane: cancel an asynchronous reconnaissance job.")(deputy_recon_cancel)
 
 if DIAGNOSTICS_ENABLED:
     mcp.tool(description="Development-only bounded read-only Git probe; enabled only by server-owned configuration.")(deputy_git_probe)

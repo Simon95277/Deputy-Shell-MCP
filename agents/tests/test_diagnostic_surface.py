@@ -6,18 +6,23 @@ import subprocess
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class DiagnosticSurfaceTests(unittest.TestCase):
-    def _tool_names(self, value="MISSING"):
+    def _tool_names(self, value="MISSING", control="MISSING"):
         env = os.environ.copy()
         if value == "MISSING":
             env.pop("DEPUTYAGENTS_ENABLE_DIAGNOSTICS", None)
         else:
             env["DEPUTYAGENTS_ENABLE_DIAGNOSTICS"] = value
+        if control == "MISSING":
+            env.pop("DEPUTYAGENTS_ENABLE_CONTROL_PLANE", None)
+        else:
+            env["DEPUTYAGENTS_ENABLE_CONTROL_PLANE"] = control
         code = "import asyncio, json, server; print(json.dumps(sorted(x.name for x in asyncio.run(server.mcp.list_tools()))))"
         result = subprocess.run(
             [sys.executable, "-c", code],
@@ -32,7 +37,7 @@ class DiagnosticSurfaceTests(unittest.TestCase):
 
     @staticmethod
     def _production_names():
-        return ["deputy_recon", "deputy_recon_cancel", "deputy_recon_start", "deputy_recon_status"]
+        return ["deputy_recon"]
 
     def test_01_missing_config_disables_diagnostics(self):
         self.assertEqual(self._tool_names(), self._production_names())
@@ -114,8 +119,18 @@ class DiagnosticSurfaceTests(unittest.TestCase):
     def test_20_legacy_sync_recon_remains_registered(self):
         self.assertIn("deputy_recon", self._tool_names())
 
-    def test_21_async_lifecycle_tools_remain_registered(self):
-        self.assertTrue({"deputy_recon_start", "deputy_recon_status", "deputy_recon_cancel"}.issubset(self._tool_names()))
+    def test_21_async_lifecycle_tools_absent_by_default_and_opt_in(self):
+        self.assertFalse({"deputy_recon_start", "deputy_recon_status", "deputy_recon_cancel"} & set(self._tool_names()))
+        self.assertTrue({"deputy_recon", "deputy_recon_start", "deputy_recon_status", "deputy_recon_cancel"}.issubset(self._tool_names(control="1")))
+
+    def test_22_public_recon_is_goal_only_and_projects_result(self):
+        import server
+        import inspect
+        self.assertEqual(list(inspect.signature(server.deputy_recon).parameters), ["goal"])
+        with patch.object(server, "execute", return_value={"status":"PASS", "job_id":"x", "session_id":"secret", "workspace_id":"DEPUTY_SHELL", "text":"Found `app/src/Main.kt`"}) as execute:
+            out = server.deputy_recon("find architecture")
+        execute.assert_called_once_with(goal="find architecture", workspace_id="DEPUTY_SHELL", worker_profile="RECON")
+        self.assertEqual(out, {"status":"PASS", "report":"Found `app/src/Main.kt`"})
 
     def test_22_runtime_marker_is_surface_one(self):
         import server
