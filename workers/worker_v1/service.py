@@ -216,7 +216,7 @@ class WorkerService:
         # lifecycle detail as an operation result.
         self._execution_lock = threading.Lock()
 
-    def execute(self, request, permitted: tuple[str, ...]) -> dict:
+    def execute(self, request, permitted: tuple[str, ...], *, on_run_started=None) -> dict:
         try:
             requested_operation = _request_dict(request).get("operation")
         except Exception:
@@ -225,11 +225,11 @@ class WorkerService:
             return {"status": "BLOCKED", "operation": requested_operation if requested_operation in _RESULT_FIELDS else "UNKNOWN",
                     "code": "OPERATION_QUEUE_TIMEOUT", "retryable": False}
         try:
-            return self._execute_locked(request, permitted)
+            return self._execute_locked(request, permitted, on_run_started=on_run_started)
         finally:
             self._execution_lock.release()
 
-    def _execute_locked(self, request, permitted: tuple[str, ...]) -> dict:
+    def _execute_locked(self, request, permitted: tuple[str, ...], *, on_run_started=None) -> dict:
         try:
             value = _request_dict(request)
             operation = value.pop("operation", None)
@@ -265,6 +265,13 @@ class WorkerService:
                 return {"status": "BLOCKED", "operation": operation, "code": code,
                         "retryable": raw_status == "BLOCKED"}
             run_id = started["run_id"]
+            if on_run_started is not None:
+                try:
+                    on_run_started(run_id)
+                except Exception:
+                    # Receipt persistence is best-effort local diagnostics. The
+                    # durable production engine remains the execution authority.
+                    pass
             deadline = time.monotonic() + self.timeout_seconds
             while time.monotonic() < deadline:
                 result = self.engine.result(run_id)

@@ -7,6 +7,7 @@ import time
 import xml.etree.ElementTree as ET
 import glob
 import re
+import stat
 from pathlib import Path
 from .capabilities import APPROVED_GRADLE_TASKS, APPROVED_VERIFIERS, APPROVED_JUNIT_REPORTS, APPROVED_ARTIFACTS, APPROVED_ACTIVITIES, APPROVED_INSTRUMENTATION, APPROVED_DUMPSYS
 from .process import evidence as process_evidence
@@ -34,7 +35,7 @@ ADB_HOST_EVIDENCE_ROOT = REPO_ROOT / ".deputy-worker-evidence"
 def _adb_ready():
     return TRUSTED_ADB if TRUSTED_ADB.is_file() else None
 
-def _adb_run(args, evidence_dir):
+def _adb_run(args, evidence_dir, *, stdout_line_limit=None):
     adb=_adb_ready()
     if adb is None: return {"status":"BLOCKED","reason":"TRUSTED_ADB_UNAVAILABLE"}
     started=time.time(); evidence_dir=Path(evidence_dir); evidence_dir.mkdir(parents=True,exist_ok=True)
@@ -42,6 +43,10 @@ def _adb_run(args, evidence_dir):
         p=subprocess.Popen([str(adb),*args],cwd=str(REPO_ROOT),env=child_environment(),shell=False,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,encoding="utf-8",errors="replace")
         stdout,stderr=p.communicate()
     except OSError as exc: return {"status":"BLOCKED","reason":"ADB_START_FAILED","error":str(exc)[:512]}
+    if stdout_line_limit is not None:
+        # Android logcat -t can include more physical lines than requested.
+        # Keep the newest lines before either local evidence or a result sees them.
+        stdout = "".join(stdout.splitlines(keepends=True)[-stdout_line_limit:])[-ADB_MAX_OUTPUT:]
     ended=time.time(); (evidence_dir/"adb.stdout.log").write_text(stdout,encoding="utf-8"); (evidence_dir/"adb.stderr.log").write_text(stderr,encoding="utf-8")
     return {"adb_path":str(adb),"args":args,"started_at":started,"ended_at":ended,"duration_ms":int((ended-started)*1000),"pid":p.pid,"exit_code":p.returncode,"stdout":stdout[:ADB_MAX_OUTPUT],"stderr":stderr[:ADB_MAX_OUTPUT],"stdout_log":str(evidence_dir/"adb.stdout.log"),"stderr_log":str(evidence_dir/"adb.stderr.log")}
 
@@ -99,9 +104,34 @@ def adb_query_package(params, evidence_dir):
     return {**raw,"status":"PASS","serial":params["serial"],"package_id":ADB_PACKAGE,"installed":bool(paths),"apk_paths":paths,"path_count":len(paths)}
 
 def _adb_typed(raw, **extra): return {**raw, "status": "PASS" if raw.get("exit_code") == 0 else "BLOCKED", **extra}
+
+def _registered_artifact_path(artifact):
+    """Resolve only a regular registered file inside the configured repository."""
+    rel = APPROVED_ARTIFACTS.get(artifact)
+    if not rel:
+        return None
+    try:
+        root = REPO_ROOT.resolve(strict=True)
+        path = root / rel
+        if root not in path.resolve(strict=True).parents:
+            return None
+        current = root
+        for part in Path(rel).parts:
+            current = current / part
+            entry = current.lstat()
+            if stat.S_ISLNK(entry.st_mode) or (
+                getattr(entry, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+            ):
+                return None
+        if not stat.S_ISREG(path.lstat().st_mode):
+            return None
+        return path
+    except (OSError, RuntimeError, ValueError):
+        return None
+
 def adb_install(params, evidence_dir):
-    evidence_dir=Path(params.pop("_evidence_dir", evidence_dir)); artifact=params["artifact_id"]; rel=APPROVED_ARTIFACTS.get(artifact); apk=REPO_ROOT/rel if rel else None
-    if apk is None or not apk.is_file(): return {"status":"BLOCKED","reason":"APPROVED_ARTIFACT_UNAVAILABLE","artifact_id":artifact}
+    evidence_dir=Path(params.pop("_evidence_dir", evidence_dir)); artifact=params["artifact_id"]; apk=_registered_artifact_path(artifact)
+    if apk is None: return {"status":"BLOCKED","reason":"APPROVED_ARTIFACT_UNAVAILABLE","artifact_id":artifact}
     digest=hashlib.sha256(apk.read_bytes()).hexdigest(); raw=_adb_run(["-s",params["serial"],"install","-r",str(apk)],evidence_dir)
     return _adb_typed(raw,serial=params["serial"],artifact_id=artifact,artifact_path=str(apk),artifact_size=apk.stat().st_size,artifact_sha256=digest)
 def adb_uninstall(params, evidence_dir):
@@ -139,11 +169,11 @@ def parse_instrumentation_output(stdout, stderr, transport_exit_code):
     if final_code is not None: return {"verdict":"FAIL","reason":"INSTRUMENTATION_NON_SUCCESS_CODE","markers":markers}
     return {"verdict":"BLOCKED","reason":"INSTRUMENTATION_RESULT_INCOMPLETE","markers":markers}
 def adb_logcat(params, evidence_dir):
-    evidence_dir=Path(params.pop("_evidence_dir", evidence_dir)); limit=min(params["limit"],2000); raw=_adb_run(["-s",params["serial"],"logcat","-b","main","-v","threadtime","-t",str(limit)],evidence_dir); text=raw.get("stdout","")[:ADB_MAX_OUTPUT]; evidence_dir.mkdir(parents=True,exist_ok=True); (evidence_dir/"logcat.txt").write_text(text,encoding="utf-8"); return _adb_typed(raw,serial=params["serial"],line_limit=limit,line_count=len(text.splitlines()),evidence_file=str(evidence_dir/"logcat.txt"))
+    evidence_dir=Path(params.pop("_evidence_dir", evidence_dir)); limit=min(params["limit"],2000); raw=_adb_run(["-s",params["serial"],"logcat","-b","main","-v","threadtime","-t",str(limit)],evidence_dir,stdout_line_limit=limit); text=raw.get("stdout","")[:ADB_MAX_OUTPUT]; evidence_dir.mkdir(parents=True,exist_ok=True); (evidence_dir/"logcat.txt").write_text(text,encoding="utf-8"); return _adb_typed(raw,serial=params["serial"],line_limit=limit,line_count=len(text.splitlines()),evidence_file=str(evidence_dir/"logcat.txt"))
 def _scoped_host_file(artifact):
     if artifact=="W6A_TEST_TEXT":
         p=ADB_HOST_EVIDENCE_ROOT/"w6a-test.txt"; p.parent.mkdir(parents=True,exist_ok=True); p.write_text("Deputy Workers scoped transfer test\n",encoding="utf-8"); return p
-    rel=APPROVED_ARTIFACTS.get(artifact); return REPO_ROOT/rel if rel else None
+    return _registered_artifact_path(artifact)
 def adb_push(params, evidence_dir):
     evidence_dir=Path(params.pop("_evidence_dir", evidence_dir)); source=_scoped_host_file(params["artifact_id"])
     if source is None or not source.is_file(): return {"status":"BLOCKED","reason":"SCOPED_SOURCE_UNAVAILABLE"}

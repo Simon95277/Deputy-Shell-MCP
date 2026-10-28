@@ -5,6 +5,25 @@ independent MCP runtimes: DeputyAgents and DeputyWorkers.
 
 ## Unreleased
 
+### Focused A4 beta candidate — Workers 1.2.0b1
+
+- Add opt-in `DA-A4-BETA-2` with four tools and nine fixed semantic mappings;
+  legacy two-tool mode remains the default over all 22 operations.
+- Bind exact choice/action review fields to sealed tickets, with expiry,
+  single dispatch, restart revocation and uncertain-outcome protection.
+- Enforce logcat physical-line bounds before public results and local logs.
+- Reject registered APK paths that escape the configured repository or traverse
+  symlinks/reparse points before install/scoped push.
+- Document the trusted interactive host, complete approval arguments, isolated
+  API 34 emulator observations and synthetic-only mutations. APK bytes are not
+  pinned across approval/installation. Physical devices and hostile local
+  writers remain unqualified. Source/package qualification passed within this
+  scope; final documentation review and public publication remain gated.
+  Phase 12 remains open.
+- Reconcile installation/configuration order, Windows/Linux artifact commands,
+  A4 examples and historical/current contracts. Correct stale Agents durability,
+  early-cancellation and preparation-budget documentation without changing code.
+
 ### Added
 
 - Added installable Agents and Workers Python distributions with stable console

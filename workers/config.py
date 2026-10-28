@@ -33,3 +33,24 @@ ANDROID_SDK_ROOT = _path("DEPUTYWORKERS_ANDROID_SDK_ROOT", _default_sdk)
 EVIDENCE_ROOT = _path("DEPUTYWORKERS_EVIDENCE_ROOT", RUNTIME_ROOT / "evidence")
 TRUSTED_PYTHON = _path("DEPUTYWORKERS_PYTHON_EXE", Path(sys.executable))
 ADB_EXE = _path("DEPUTYWORKERS_ADB_EXE", ANDROID_SDK_ROOT / "platform-tools" / ("adb.exe" if os.name == "nt" else "adb"))
+
+
+def protocol_mode() -> str:
+    """Return the server-owned Workers protocol mode, failing closed on typos."""
+    value = os.environ.get("DEPUTYWORKERS_PROTOCOL_MODE", "legacy")
+    if value not in {"legacy", "focused-a4-beta"}:
+        raise ValueError("PROTOCOL_MODE_INVALID")
+    return value
+
+
+def a4_profile() -> str | None:
+    """Return the owner-selected semantic profile when the A4 beta is enabled."""
+    if protocol_mode() != "focused-a4-beta":
+        return None
+    value = os.environ.get("DEPUTYWORKERS_A4_PROFILE", "")
+    if value not in {"android", "multi_repo", "python_docker", "deputy_mcp_package"}:
+        raise ValueError("A4_PROFILE_INVALID")
+    return value
+
+
+A4_DEVICE_BINDINGS_PATH = RUNTIME_ROOT / "a4-device-bindings.json"

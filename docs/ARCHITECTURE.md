@@ -26,3 +26,18 @@ are opt-in with server process flags and absent from the default tool inventory.
 
 See `agents/docs/ARCHITECTURE.md` and `workers/docs/ARCHITECTURE.md` for
 subsystem details.
+
+Workers also supports the explicit `focused-a4-beta` mode. It replaces the
+default two schemas with `deputy_prepare(request)`,
+`deputy_choose(prepare_id, choice_id, choice_review)`,
+`deputy_observe(intent_id)` and `deputy_act(intent_id, approval_review)` under
+`DA-A4-BETA-2`. Nine fixed semantic mappings use the same 22-operation registry.
+The server owns the active profile and bindings. Each choice and effectful
+action requires a trusted interactive host to display complete arguments and
+obtain a fresh human decision; review text alone is not consent.
+
+Legacy requests can contain bounded repository-relative paths or device serials
+where the typed operation permits them. A4 dispatch accepts only its intent and
+review fields. Neither route adds arbitrary host-path/executable/argv authority.
+Use the [installation guide](INSTALLATION.md), [host setup](MCP_HOST_SETUP.md)
+and [A4 guide](../workers/docs/A4_USER_GUIDE.md) for practical examples.

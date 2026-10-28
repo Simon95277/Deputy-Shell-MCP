@@ -1,5 +1,13 @@
 # Efficiency Benchmark 1
 
+This directory preserves the Phase 11 measurement instrument and historical
+contracts/results. Its recorded job vocabulary and client telemetry limitations
+describe those frozen experiments, not the current A4 beta interface. Do not
+change frozen case inputs or reinterpret old runs to qualify A4. For current
+product use see the [A4 guide](../../workers/docs/A4_USER_GUIDE.md) and
+[installation](../../docs/INSTALLATION.md). The historical figures below are
+unchanged; no new inference campaign is part of the beta documentation work.
+
 This is a measurement instrument, not a product demo. It compares a fresh
 supervisor session working directly against a synthetic Git repository with a
 fresh supervisor session using the bounded Deputy Agents/Workers interfaces.

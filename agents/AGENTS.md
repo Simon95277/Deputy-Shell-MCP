@@ -159,7 +159,7 @@ Do not casually change timeout constants.
 
 Current important limits:
 
-- preparation budget: 15 s
+- preparation budget: 30 s
 - individual snapshot Git command ceiling: 3 s
 - true child idle timeout: 180 s
 - active operation timeout: 900 s
@@ -227,7 +227,7 @@ without a milestone:
 - diagnostic tools are intentionally development-only and server-enabled;
 - host paths are server-owned and configurable through `DEPUTYAGENTS_*` environment variables;
 - the OpenCode writable-state tmpfs set may need future expansion;
-- release CI and publication automation remain later roadmap work.
+- CI and manual release-candidate qualification exist; public release publication is separately gated.
 
 ## Change discipline
 

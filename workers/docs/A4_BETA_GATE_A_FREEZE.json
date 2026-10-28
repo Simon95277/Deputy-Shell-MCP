@@ -1,0 +1,46 @@
+{
+  "schema": "deputy.workers.a4-gate-a-freeze.v1",
+  "status": "CONTRACT_FROZEN_IMPLEMENTATION_IN_PROGRESS",
+  "baseline": {
+    "branch": "main",
+    "commit": "e17ea58932df3b928c5dfd4455802db596eb18d9",
+    "agents_tests": 179,
+    "workers_tests": 355,
+    "mcp_qualification": "2.2.0",
+    "python": "3.10",
+    "workers_capabilities": 22
+  },
+  "proof9": {
+    "disposition": "ADVANCE",
+    "freeze_sha256": "7442d3ce36a3d8b1f6f8166ae9a9999359e54ce6a9b3894990f4a8be47a6c5a1",
+    "production_shape_qualification": "PASS",
+    "mapped_semantics": 9,
+    "unsupported_semantics": 14,
+    "execution_count": 0
+  },
+  "proof9_source_matches": {
+    "WORKER_CAPABILITIES.json": "f2d19ade5bbec7dfd2978e8bd7c3a7c02084abba706142315ab4297a3b4f0ac2",
+    "server.py": "477ea37087109a34c6c4b650cfb070acac18e7a0c33d667e64aa2c850820c021",
+    "config.py": "c221ba7241f2bbea408ee61a2e3623936a53bab95ace833e908021260ddd1219",
+    "worker_v1/service.py": "24b5e421a010b05c6e8af00b9830218e78292a1ac2e0cba9f3d30f1513e0da82",
+    "worker_v1/capabilities.py": "63cbe4ffc9f7cf06787fcef5177ad9490f2d2b2ad7a6da964382d340c081cecc",
+    "worker_v1/models.py": "51081648e3086934638ca5b30a103ac4d16683c4bd09120492cdc18a34fd9a18"
+  },
+  "contract_files": {
+    "workers/docs/A4_BETA_CONTRACT.md": "e117b4210044e92ae52e55011b506e44064d296db8fd7a0d3eb275142aca592f",
+    "docs/THREAT_MODEL.md": "fcdea07955333fb33877f5ed9b607cbf39104cd6e8657ccf83b9b56b6d59c168"
+  },
+  "architecture_decisions": [
+    "Legacy remains the default; focused-a4-beta is explicit server configuration.",
+    "A4 mode registers only prepare, choose, observe(intent_id), and act(intent_id); no fallback or lifecycle tools.",
+    "A4 profile is server-owned and required; cross-profile requests/compounds fail closed.",
+    "Device aliases resolve from a fixed server-owned runtime file; MCP never accepts raw serials.",
+    "Intent tickets expire after 10 minutes, are single-dispatch, integrity sealed, and runtime-epoch bound.",
+    "After restart, prepared tickets are revoked and unresolved in-flight dispatches are durable OUTCOME_UNCERTAIN; never auto-retry.",
+    "The existing ProductionRunEngine remains the sole execution engine; no alternate generic executor is added.",
+    "No real destructive Android qualification without explicit owner-authorized disposable hardware."
+  ],
+  "qualification_plan": "See workers/docs/A4_BETA_CONTRACT.md#frozen-qualification-plan",
+  "release_authorized": false,
+  "publication_performed": false
+}

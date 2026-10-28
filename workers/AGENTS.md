@@ -20,3 +20,19 @@ Legacy status/start/result/cancel and smoke tools are administrative or
 development surfaces, not normal model controls. They are registered only
 when the server owner starts the process with
 `DEPUTYWORKERS_ENABLE_CONTROL_PLANE=1`.
+
+## Experimental A4 mode
+
+`focused-a4-beta` is a server-owned opt-in protocol with four public tools:
+`deputy_prepare`, `deputy_choose`, `deputy_observe`, and `deputy_act`.
+It maps nine semantic outcomes to the existing 22-operation registry.
+Preserve exact profile, target, effect, stage, ticket expiry, and one-shot
+dispatch checks. A pending ambiguous choice must not be replaced by a fresh
+prepare request. A4 does not authenticate whether a clarification came from
+the user; the MCP host's approval policy protects effectful calls. Keep the
+legacy default and A4 mode isolated. Consult
+[the A4 beta contract](docs/A4_BETA_CONTRACT.md) before changing either.
+For examples see the [A4 user guide](docs/A4_USER_GUIDE.md). Current v2 choice
+and action arguments include server-issued `choice_review` and `approval_review`.
+The supported host must prompt the operator on each choice/action and show
+complete arguments; model-copied reviews are not proof of human consent.
