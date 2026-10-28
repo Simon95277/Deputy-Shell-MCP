@@ -14,6 +14,11 @@ high-confidence content-secret scan before worker/provider setup. This reduces
 specific exposure risks; it does not make provider-exposable source
 confidential or provide comprehensive PII detection.
 
+The [published Focused A4 Beta](https://github.com/Simon95277/Deputy-Shell-MCP/releases/tag/workers-v1.2.0b1)
+contains Workers `1.2.0b1` and Agents `1.0.0`. Publication does not change the
+security scope or limitations below. Release files and the tag are immutable;
+current repository guidance may receive reviewed documentation corrections.
+
 ## Scope
 
 Deployment supports one trusted operator controlling the machine, configuration

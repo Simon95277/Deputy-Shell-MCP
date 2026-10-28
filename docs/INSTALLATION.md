@@ -1,10 +1,15 @@
 # Install Deputy Shell MCP
 
 This guide installs Workers `1.2.0b1` and the Agents `1.0.0` companion package.
-Publication is pending. After publication, obtain the assets from the
-[GitHub releases page](https://github.com/Simon95277/Deputy-Shell-MCP/releases).
-Until then, use the reviewed local candidate files with the same names.
+Both are available from the [Focused A4 Beta prerelease](https://github.com/Simon95277/Deputy-Shell-MCP/releases/tag/workers-v1.2.0b1).
+The six download links below point to that exact immutable release.
 These commands do not select a similarly named project from a package index.
+
+The package archives and tagged documentation are frozen snapshots from before
+publication. Their embedded READMEs may still say "candidate" or "pending".
+Use this current repository guide for download status and installation; those
+historical words do not mean the published files are unavailable. Do not replace
+release assets to update their embedded wording.
 
 ## Prerequisites
 
@@ -25,7 +30,18 @@ each other if installed together. Avoid system Python installation.
 
 ## Check the files
 
-Put the following six assets together in a download directory:
+Download these six assets into one directory. Wheels are recommended for
+installation; the source archives are alternatives. The checksum commands below
+verify all four package files, so keep both archives for that complete check.
+
+| File | Download |
+| --- | --- |
+| `deputy_workers_mcp-1.2.0b1-py3-none-any.whl` | [Download](https://github.com/Simon95277/Deputy-Shell-MCP/releases/download/workers-v1.2.0b1/deputy_workers_mcp-1.2.0b1-py3-none-any.whl) |
+| `deputy_workers_mcp-1.2.0b1.tar.gz` | [Download](https://github.com/Simon95277/Deputy-Shell-MCP/releases/download/workers-v1.2.0b1/deputy_workers_mcp-1.2.0b1.tar.gz) |
+| `deputy_shell_agents_mcp-1.0.0-py3-none-any.whl` | [Download](https://github.com/Simon95277/Deputy-Shell-MCP/releases/download/workers-v1.2.0b1/deputy_shell_agents_mcp-1.0.0-py3-none-any.whl) |
+| `deputy_shell_agents_mcp-1.0.0.tar.gz` | [Download](https://github.com/Simon95277/Deputy-Shell-MCP/releases/download/workers-v1.2.0b1/deputy_shell_agents_mcp-1.0.0.tar.gz) |
+| `SHA256SUMS.txt` | [Download](https://github.com/Simon95277/Deputy-Shell-MCP/releases/download/workers-v1.2.0b1/SHA256SUMS.txt) |
+| `release-manifest.json` | [Download](https://github.com/Simon95277/Deputy-Shell-MCP/releases/download/workers-v1.2.0b1/release-manifest.json) |
 
 ```text
 deputy_workers_mcp-1.2.0b1-py3-none-any.whl
@@ -231,7 +247,7 @@ execute a verifier or request inference. Workers reports SDK/ADB availability
 but does not qualify Android operations. Keep local evidence out of public reports.
 
 For rollback, stop the server and register the previous verified environment and
-configuration. Preserve local receipts and the candidate environment for
+configuration. Preserve local receipts and the installed environment for
 diagnosis. Restart revokes prepared intents; it does not make an uncertain
 operation safe to repeat. Package rollback cannot undo a device action. Do not
 overwrite a public package or release to fix it.

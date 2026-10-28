@@ -70,11 +70,16 @@ It does not create a release or tag, publish to PyPI, or change repository
 settings. No workflow accepts caller-provided shell commands, build commands,
 repository URLs, or upload destinations.
 
-The beta's local four-tool A4 qualification is separate from a public run of
-these workflows. Source regressions cover A4 schemas, nine mappings, review
-binding and restart/replay behavior; this documentation edit does not claim a
-new remote CI result or publish an artifact. A public prerelease needs its own
-approved final commit, verified packages and release decision.
+The [Focused A4 Beta](https://github.com/Simon95277/Deputy-Shell-MCP/releases/tag/workers-v1.2.0b1) is publicly available.
+[Main CI](https://github.com/Simon95277/Deputy-Shell-MCP/actions/runs/40681679651)
+and [manual release qualification](https://github.com/Simon95277/Deputy-Shell-MCP/actions/runs/40682221400)
+passed on published commit `ef20a805773eff6ac0117384b0f130666168e83d`.
+These receipts describe that release, not a future documentation revision.
+
+Local interactive four-tool A4 qualification remains separate from CI. Source
+regressions cover A4 schemas, nine mappings, review binding and restart/replay
+behavior. Documentation PRs run the required checks but do not replace released
+archives; future releases require their own approved commit and release decision.
 
 ## Run the source gates locally
 

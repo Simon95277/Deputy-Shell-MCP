@@ -1,6 +1,7 @@
 # DeputyAgents architecture and runtime contract
 
-This describes the current Agents `1.0.0` package. Start with the repository
+This describes Agents `1.0.0`, the companion in the
+[published Focused A4 Beta](https://github.com/Simon95277/Deputy-Shell-MCP/releases/tag/workers-v1.2.0b1). Start with the repository
 [installation guide](../../docs/INSTALLATION.md) and [host setup](../../docs/MCP_HOST_SETUP.md).
 
 | Contract | Current value |
@@ -170,8 +171,8 @@ does not prove live Docker/provider readiness. See [installation](../../docs/INS
 Run the complete Agents suite, contract/import checks and package/privacy checks
 after relevant changes. Runtime semantics require a contract review/version
 decision. Do not casually change budgets, selection or provider authority.
-CI and packaging qualification already exist; public publication remains a
-separate approval step. OpenCode writable-state needs outside the fixed tmpfs
+CI and packaging qualification already exist, and the Focused A4 Beta is
+publicly available. Future publications still require separate approval. OpenCode writable-state needs outside the fixed tmpfs
 set and provider availability remain operational limits. Hostile local writers,
 hostile shared users and multi-tenant isolation are outside this deployment.
 

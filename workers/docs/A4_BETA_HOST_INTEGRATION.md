@@ -1,6 +1,7 @@
 # Focused A4 beta host integration
 
-A4 is an opt-in Workers protocol for a trusted single operator. The server
+A4 is available in the [published Workers `1.2.0b1` beta](https://github.com/Simon95277/Deputy-Shell-MCP/releases/tag/workers-v1.2.0b1).
+It remains an opt-in Workers protocol for a trusted single operator. The server
 owns its profile, repository/device bindings, registered executables, and
 operation mapping. A compatible MCP host should discover exactly four tools:
 `deputy_prepare`, `deputy_choose`, `deputy_observe`, and `deputy_act`.

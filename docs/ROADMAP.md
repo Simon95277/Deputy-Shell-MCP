@@ -17,10 +17,11 @@
 
 ## Workers
 
-- **Focused A4 Beta candidate:** Workers `1.2.0b1`, protocol `DA-A4-BETA-2`,
-  has local source/package qualification for nine fixed semantics with legacy
-  default and all 22 operations preserved. Final documentation and publication
-  gates remain pending; the beta is not publicly released or production certified.
+- **Focused A4 Beta: PUBLISHED.** [Workers `1.2.0b1` with Agents `1.0.0`](https://github.com/Simon95277/Deputy-Shell-MCP/releases/tag/workers-v1.2.0b1)
+  is available, protocol `DA-A4-BETA-2`, with nine fixed semantics, legacy
+  default and all 22 operations preserved. Main CI and manual release qualification
+  passed on the published commit. This beta is not production certification
+  or completion of the Phase #12 maturity gate.
 - V2/C1 remains research only.
 - Future capability expansion requires an explicit architecture decision.
 - Destructive Android qualification remains outside ordinary contributor CI.
@@ -30,7 +31,8 @@
 - **Phase #9 — CI and release-candidate gates: COMPLETED.** PR CI, main CI,
   and manual release-candidate qualification passed. Candidate artifacts are
   checksummed and uploaded ephemerally; no release, tag, or PyPI publication
-  was performed.
+  was performed. That statement describes Phase #9; the later Focused A4 Beta
+  GitHub publication is recorded above.
 - **Phase #10 — privacy and generalization: COMPLETED.**
 - **Phase #11 — efficiency benchmark: COMPLETED.** The control-tower redesign reduced
   Workers E1-E3 campaign supervisor cost by 51.99% (2,132,559 -> 1,023,874)
