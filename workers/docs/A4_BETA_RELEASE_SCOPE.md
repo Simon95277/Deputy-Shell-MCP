@@ -1,11 +1,12 @@
-# Focused A4 beta candidate scope
+# Focused A4 Beta release scope
 
-The Workers candidate version is `1.2.0b1`; the opt-in protocol is
+The [published Focused A4 Beta](https://github.com/Simon95277/Deputy-Shell-MCP/releases/tag/workers-v1.2.0b1)
+contains Workers `1.2.0b1` and Agents `1.0.0`; the opt-in Workers protocol is
 `DA-A4-BETA-2`. Legacy Workers remains the default and retains all 22
-operations. A4 maps nine fixed semantics to that registry. This candidate
-does not complete the wider Phase 12 v1.0 maturity gate or certify production
-use. Source qualification covers the scope below; public release is separately
-gated and remains pending.
+operations. A4 maps nine fixed semantics to that registry. Publication completed
+after successful main CI and manual qualification. This beta does not complete
+the wider Phase 12 v1.0 maturity gate or certify production use. The qualified
+security and Android scope remains exactly as described below.
 
 ## Supported deployment and host
 

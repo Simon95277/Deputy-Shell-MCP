@@ -66,7 +66,11 @@ widening, host process execution, repository mutation, path escape, device
 mutation, ADB authority, and trusted executable/configuration boundaries.
 Workers are not claimed to be containerized.
 
-### Focused A4 beta candidate
+### Published Focused A4 Beta
+
+[Workers `1.2.0b1` with Agents `1.0.0`](https://github.com/Simon95277/Deputy-Shell-MCP/releases/tag/workers-v1.2.0b1)
+is publicly available. Publication does not broaden the qualified authority or
+Android scope described here.
 
 The A4 beta is an explicit server-selected protocol mode, not a simultaneous
 model-facing route. In A4 mode only `deputy_prepare(request)`,

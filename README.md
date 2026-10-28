@@ -12,9 +12,10 @@ on other configured Git repositories, but registered Android targets, artifacts,
 the Gradle task and verifier remain specific to the existing Deputy Shell setup.
 This beta is not a general command runner.
 
-**Status:** Focused A4 Beta candidate, Workers `1.2.0b1` with Agents `1.0.0`.
-Publication is pending. These versions do not imply production certification or
-completion of the wider v1.0 maturity gate.
+**Status:** [Focused A4 Beta is publicly available](https://github.com/Simon95277/Deputy-Shell-MCP/releases/tag/workers-v1.2.0b1),
+Workers `1.2.0b1` with Agents `1.0.0`, published on 2026-10-28.
+This prerelease does not imply production certification or completion of the
+wider v1.0 maturity gate.
 
 ## Two kinds of help
 
@@ -32,9 +33,10 @@ can be wrong; it does not authorize a host change.
 1. Install Python 3.10 or newer and Git. Agents also needs Docker with Linux
    containers. Android operations need the operator's Android SDK/ADB setup;
    repository-only Workers calls do not.
-2. Obtain the reviewed packages and `SHA256SUMS.txt`. After publication they
-   will be attached to the [GitHub prerelease](https://github.com/Simon95277/Deputy-Shell-MCP/releases).
-   There is no published beta asset to download yet.
+2. Download the packages, `SHA256SUMS.txt` and `release-manifest.json` from the
+   [published GitHub prerelease](https://github.com/Simon95277/Deputy-Shell-MCP/releases/tag/workers-v1.2.0b1).
+   The [installation guide](docs/INSTALLATION.md) links every asset and explains
+   how to verify its hash. The release files and tag are immutable.
 3. Follow the [Windows or Linux installation guide](docs/INSTALLATION.md).
    Install Agents and Workers into **separate virtual environments**, configure
    the source repository and runtime directories, then run `--check`.
@@ -133,7 +135,8 @@ and one repository. Hostile local writers, hostile shared users and multi-tenant
 deployments are unsupported.
 
 - Source suites and package checks passed on Windows CPython 3.10 and Ubuntu/WSL
-  CPython 3.12 with MCP 2.2.0. Metadata declares Python 3.10+; other environments
+  CPython 3.12 with MCP 2.2.0. Published-source GitHub CI also passed Ubuntu
+  Python 3.10 and 3.14.7. Metadata declares Python 3.10+; other environments
   are not all individually qualified. macOS has runtime-path support but was
   not qualified for this beta.
 - Seven Android observations were verified on an isolated API 34 emulator.

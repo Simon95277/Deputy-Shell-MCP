@@ -1,5 +1,6 @@
-# Deputy Workers V1.1 architecture
+# Deputy Workers architecture — legacy and Focused A4 Beta
 
+Workers `1.2.0b1` is available in the [Focused A4 Beta prerelease](https://github.com/Simon95277/Deputy-Shell-MCP/releases/tag/workers-v1.2.0b1).
 The MCP server owns the repository binding, runtime roots, trusted Python,
 Android SDK/ADB binding, capability registry, lifecycle, integrity snapshots,
 and evidence paths. The default model-facing surface is exactly
@@ -55,7 +56,7 @@ routing guidance and explains how to avoid granting an alternate direct route
 to the target. A4's server-side authority checks still apply regardless of
 model routing instructions.
 
-The [candidate scope](A4_BETA_RELEASE_SCOPE.md) records Gate 2's isolated
+The [beta release scope](A4_BETA_RELEASE_SCOPE.md) records Gate 2's isolated
 API 34 emulator qualification: seven Android observations verified, seven
 mutating Worker operations synthetic-only, and no physical-device qualification.
 Gate 3 enforces registered APK regular-file containment without symlink/reparse

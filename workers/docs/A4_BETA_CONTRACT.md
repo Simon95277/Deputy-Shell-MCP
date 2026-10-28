@@ -1,14 +1,15 @@
 # Focused A4 Workers beta contract
 
-Status: current `DA-A4-BETA-2` release-candidate contract for
-`work/focused-a4-beta`. Independent technical acceptance and owner publication
-approval remain separate. This is not production certification.
+Status: current `DA-A4-BETA-2` contract for the
+[published Focused A4 Beta](https://github.com/Simon95277/Deputy-Shell-MCP/releases/tag/workers-v1.2.0b1), Workers `1.2.0b1`.
+The release followed independent technical acceptance and owner authorization.
+This contract is not itself release authority or production certification.
 
 For first use and examples see the [A4 user guide](A4_USER_GUIDE.md).
 
 ## Historical baseline and current scope
 
-- Public main baseline: `e17ea58932df3b928c5dfd4455802db596eb18d9`.
+- Pre-A4 public main baseline: `e17ea58932df3b928c5dfd4455802db596eb18d9`.
 - Historical pre-A4 local baseline: Agents 179/179 and Workers 355/355 on Windows
   CPython 3.10 with MCP 2.2.0 and the checked-in synthetic CI fixtures.
 - Frozen Workers authority remains the 22 operations in
@@ -164,7 +165,7 @@ pure-observation ticket.
 
 ## Explicit non-goals and residual risks
 
-The [release-candidate qualification scope](A4_BETA_RELEASE_SCOPE.md) records
+The [published beta qualification scope](A4_BETA_RELEASE_SCOPE.md) records
 the API 34 emulator observations, synthetic-only mutations, artifact-byte
 limitation, and supported host profile. The original guided 12/12 campaign is
 historical evidence for the previous protocol; it does not qualify these v2

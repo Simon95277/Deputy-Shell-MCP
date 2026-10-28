@@ -61,3 +61,9 @@ results; label historical interfaces rather than presenting them as current APIs
 README changes alter package metadata, and Workers `docs/*.md` changes alter
 its sdist. Rebuild and audit affected artifacts and verify fresh installations.
 Rescan changed publication material for secrets/personal paths before any push.
+
+The [published Focused A4 Beta](https://github.com/Simon95277/Deputy-Shell-MCP/releases/tag/workers-v1.2.0b1) archives and tag are immutable.
+Documentation-only PRs can correct current repository status and links; their CI
+builds do not replace published assets. Preserve embedded historical wording. A
+change to packaged behavior, security claims or installation compatibility needs
+a separate version/release decision, not an overwrite of the beta files.

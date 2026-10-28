@@ -6,16 +6,18 @@ read-only in a restricted Docker container, runs an OpenCode child and returns
 an advisory report. The default tool is `deputy_recon(goal)`; the caller cannot
 choose a source root, executable, provider or model.
 
-This is the Agents `1.0.0` companion package for the Focused A4 Beta candidate.
+Agents `1.0.0` is the companion package in the
+[published Focused A4 Beta](https://github.com/Simon95277/Deputy-Shell-MCP/releases/tag/workers-v1.2.0b1).
 Workers is a separate deterministic subsystem and must use a separate Python
 environment: both distributions provide `server`, `config` and `preflight`
-modules. Publication is pending; no production certification is claimed.
+modules. The GitHub prerelease is available; no production certification is claimed.
 
 ## Install and configure
 
 Use Python 3.10+, Git, Docker running Linux containers and an operator-controlled
 Git repository. OpenCode runs from the pinned image; a host OpenCode installation
-and Hermes are not required. Install the reviewed local wheel using the Agents
+and Hermes are not required. Download and hash-check the wheel from the release,
+then install it using the Agents
 environment's Python, with MCP 2.2.0 for the qualified route:
 
 ```text

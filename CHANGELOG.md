@@ -5,7 +5,19 @@ independent MCP runtimes: DeputyAgents and DeputyWorkers.
 
 ## Unreleased
 
-### Focused A4 beta candidate — Workers 1.2.0b1
+### Documentation
+
+- Correct repository publication status and link to the published beta assets.
+- Preserve released packages and tagged documentation unchanged; these current
+  repository corrections do not create another package release.
+
+## Focused A4 Beta — Workers 1.2.0b1 + Agents 1.0.0 — 2026-10-28
+
+[Published GitHub prerelease](https://github.com/Simon95277/Deputy-Shell-MCP/releases/tag/workers-v1.2.0b1), from commit
+`ef20a805773eff6ac0117384b0f130666168e83d`. No PyPI publication or production
+certification is included.
+
+### Focused A4 Beta interface
 
 - Add opt-in `DA-A4-BETA-2` with four tools and nine fixed semantic mappings;
   legacy two-tool mode remains the default over all 22 operations.
@@ -18,8 +30,8 @@ independent MCP runtimes: DeputyAgents and DeputyWorkers.
   API 34 emulator observations and synthetic-only mutations. APK bytes are not
   pinned across approval/installation. Physical devices and hostile local
   writers remain unqualified. Source/package qualification passed within this
-  scope; final documentation review and public publication remain gated.
-  Phase 12 remains open.
+  scope. The GitHub beta publication completed after independent acceptance
+  and successful main CI and manual release qualification. Phase 12 remains open.
 - Reconcile installation/configuration order, Windows/Linux artifact commands,
   A4 examples and historical/current contracts. Correct stale Agents durability,
   early-cancellation and preparation-budget documentation without changing code.
@@ -79,7 +91,7 @@ independent MCP runtimes: DeputyAgents and DeputyWorkers.
 - Active context-window/compaction telemetry and child-agent token usage were
   not authoritatively measured and remain explicitly unmeasured.
 
-### Planned
+### Future work (not included in this beta)
 
 - Add below-break-even delegation/refusal routing so trivial work can remain
   direct when Deputy cannot materially compress the evidence returned to the

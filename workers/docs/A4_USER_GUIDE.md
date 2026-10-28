@@ -1,6 +1,8 @@
 # Use Focused A4 Beta
 
-A4 is an opt-in interface in Workers `1.2.0b1`, protocol `DA-A4-BETA-2`.
+A4 is an opt-in interface in the [published Workers `1.2.0b1` beta](https://github.com/Simon95277/Deputy-Shell-MCP/releases/tag/workers-v1.2.0b1),
+protocol `DA-A4-BETA-2`. The release tag and archives are immutable; this
+repository guide can receive reviewed documentation corrections.
 You ask for a supported outcome, review what the server prepared, then make
 one terminal observation or action call. Legacy Workers remains the default.
 Start with the repository [installation](../../docs/INSTALLATION.md) and

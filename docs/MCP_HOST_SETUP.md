@@ -1,6 +1,8 @@
 # Connect an MCP host and make a first request
 
-Complete [installation](INSTALLATION.md) first, including environment variables
+The [published Focused A4 Beta](https://github.com/Simon95277/Deputy-Shell-MCP/releases/tag/workers-v1.2.0b1)
+contains Workers `1.2.0b1` and Agents `1.0.0`. Complete
+[installation](INSTALLATION.md) first, including environment variables
 and successful `--check` output. The host starts a local process and speaks MCP
 over stdin/stdout; Deputy does not provide a public HTTP service or require a
 browser login of its own. Authentication for a supervisor model belongs to

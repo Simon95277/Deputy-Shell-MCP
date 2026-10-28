@@ -5,7 +5,8 @@ assistant. Local Python code runs registered repository, test-report, artifact
 and Android operations. Workers does not call an AI model and exposes no generic
 shell, arbitrary executable or caller-selected command arguments.
 
-Version `1.2.0b1` is a Focused A4 Beta candidate. **Legacy Workers remains the
+Version `1.2.0b1` is the [published Focused A4 Beta](https://github.com/Simon95277/Deputy-Shell-MCP/releases/tag/workers-v1.2.0b1).
+**Legacy Workers remains the
 default**, preserving all 22 operations through `deputy_observe(request)` and
 `deputy_act(request)`. A request selects one typed registered operation. Some
 operations accept bounded repository-relative paths or device serials; those
@@ -24,8 +25,8 @@ environment. Do not install Agents into it: both packages provide top-level
 
 `<workers-python>` means the actual virtual-environment interpreter. The
 [Windows/Linux installation guide](https://github.com/Simon95277/Deputy-Shell-MCP/blob/main/docs/INSTALLATION.md)
-provides complete venv, checksum and sdist steps. Publication is pending; use
-reviewed local candidate files until the GitHub prerelease is available.
+provides complete venv, checksum and sdist steps, with direct links to the
+published release assets. Download and verify the package before running pip.
 
 Configure the server's `DEPUTYWORKERS_DEPUTY_SHELL_ROOT`, writable
 `DEPUTYWORKERS_RUNTIME_ROOT`, its subordinate `DEPUTYWORKERS_EVIDENCE_ROOT`,
