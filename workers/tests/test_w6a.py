@@ -72,7 +72,7 @@ class W6ATests(unittest.TestCase):
                     mock.patch.object(host_ops, "_adb_run", return_value={"exit_code": 0, "stdout": "Success", "stderr": ""}) as run:
                 accepted = host_ops.adb_install({"serial": TEST_SERIAL, "artifact_id": "DEPUTY_DEBUG_APK"}, root / "evidence")
                 self.assertEqual(accepted["status"], "PASS")
-                self.assertIn(str(apk), run.call_args.args[0])
+                self.assertIn(str(apk.resolve(strict=True)), run.call_args.args[0])
                 apk.unlink()
                 try:
                     os.symlink(outside, apk)
