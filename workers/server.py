@@ -7,6 +7,8 @@ import tempfile
 import time
 import re
 from pathlib import Path
+from typing import Annotated
+from pydantic import Field
 from mcp.types import ToolAnnotations
 
 from mcp.server import MCPServer
@@ -26,7 +28,7 @@ from worker_v1.service import (
     ACT_OPERATIONS, OBSERVE_OPERATIONS, ActRequest, ObserveRequest, WorkerService,
     worker_control_plane_enabled,
 )
-from config import EVIDENCE_ROOT, RUNTIME_ROOT, TRUSTED_PYTHON
+from config import EVIDENCE_ROOT, RUNTIME_ROOT, TRUSTED_PYTHON, a4_profile, protocol_mode
 
 
 SERVER_NAME = "Deputy Workers"
@@ -214,6 +216,23 @@ W2_ENGINE = DurableRunEngine(BASE_DIR)
 PRODUCTION_ENGINE = ProductionRunEngine(BASE_DIR)
 WORKER_SERVICE = WorkerService(PRODUCTION_ENGINE)
 CONTROL_PLANE_ENABLED = worker_control_plane_enabled()
+CONFIG_ERROR = None
+try:
+    PROTOCOL_MODE = protocol_mode()
+    A4_PROFILE = a4_profile()
+except ValueError as exc:
+    PROTOCOL_MODE = "invalid"
+    A4_PROFILE = None
+    CONFIG_ERROR = str(exc) if str(exc) in {"PROTOCOL_MODE_INVALID", "A4_PROFILE_INVALID"} else "PROTOCOL_CONFIGURATION_INVALID"
+A4_SERVICE = None
+if PROTOCOL_MODE == "focused-a4-beta" and A4_PROFILE is not None:
+    from worker_v1.a4 import A4DispatchResponse, A4IntentService, A4PrepareResponse
+
+
+def _legacy_tool(**kwargs):
+    if PROTOCOL_MODE == "legacy":
+        return mcp.tool(**kwargs)
+    return lambda function: function
 
 
 def sha256_file(path: Path) -> str:
@@ -971,7 +990,7 @@ def deputy_act(request: ActRequest) -> dict[str, object]:
     return public_result(WORKER_SERVICE.execute(request, ACT_OPERATIONS))
 
 
-mcp.tool(
+_legacy_tool(
     description=(
         "Run one bounded observation using a single registered operation. The tool schema "
         "is the capability catalog. The server binds the repository/device and runs the "
@@ -979,7 +998,7 @@ mcp.tool(
     ),
     annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True),
 )(deputy_observe)
-mcp.tool(
+_legacy_tool(
     description=(
         "Run one bounded state-changing or execution operation using registered authority. "
         "The server owns repository/device binding, execution, lifecycle and evidence and "
@@ -988,7 +1007,7 @@ mcp.tool(
     annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=True),
 )(deputy_act)
 
-if CONTROL_PLANE_ENABLED:
+if CONTROL_PLANE_ENABLED and PROTOCOL_MODE == "legacy":
     for _name, _function, _description in (
         ("deputy_worker_status", deputy_worker_status, "Owner diagnostic: inspect Worker runtime and registry status."),
         ("deputy_worker_smoke", deputy_worker_smoke, "Owner diagnostic: run the synthetic legacy Worker smoke."),
@@ -1001,7 +1020,127 @@ if CONTROL_PLANE_ENABLED:
         mcp.tool(name=_name, description=_description)(_function)
 
 
+if PROTOCOL_MODE == "focused-a4-beta":
+    _intent_id = Annotated[str, Field(min_length=50, max_length=50, pattern=r"^intent_[A-Za-z0-9_-]{43}$")]
+    _prepare_id = Annotated[str, Field(min_length=48, max_length=48, pattern=r"^prep_[A-Za-z0-9_-]{43}$")]
+    _choice_id = Annotated[str, Field(min_length=50, max_length=50, pattern=r"^choice_[A-Za-z0-9_-]{43}$")]
+
+    _A4_PROFILE_TASKS = {
+        "android": (
+            "observe registered-device inventory, bounded Android properties, and bounded device logs; "
+            "or prepare an explicitly requested install of a registered APK, force-stop of the configured "
+            "Deputy app, or clear-data action for that app"
+        ),
+        "multi_repo": (
+            "summarize configured repository state, perform the configured diff/whitespace check, collect "
+            "bounded Android logs, or prepare installation of a registered APK"
+        ),
+        "python_docker": (
+            "run only the owner-registered runtime-integrity manifest verifier in the configured Python profile"
+        ),
+        "deputy_mcp_package": (
+            "run only the owner-registered runtime-integrity manifest verifier for the configured Deputy MCP package"
+        ),
+    }
+    _A4_PROFILE_OBSERVATIONS = {
+        "android": "Device inventory, property, and log requests are observations.",
+        "multi_repo": "Repository-state, diff-check, and Android-log requests are observations.",
+        "python_docker": "This profile exposes only its registered verifier, not a general observation tool.",
+        "deputy_mcp_package": "This profile exposes only its registered verifier, not a general observation tool.",
+    }
+    _A4_PROFILE_EFFECTS = {
+        "android": "APK installation, force-stop, and clear-data requests are effectful.",
+        "multi_repo": "Registered APK installation is effectful.",
+        "python_docker": "The registered verifier is effectful local execution.",
+        "deputy_mcp_package": "The registered package verifier is effectful local execution.",
+    }
+    _A4_PROFILE_TASKS_TEXT = _A4_PROFILE_TASKS[A4_PROFILE]
+    _A4_PREPARE_DESCRIPTION = (
+        f"Use this tool for the configured {A4_PROFILE} profile to {_A4_PROFILE_TASKS_TEXT}. "
+        "These are the supported task families for this profile; other work is unsupported. "
+        "For a covered task, call deputy_prepare first instead of using local shell or command tools. "
+        "This tool only resolves the request and prepares a bounded intent; it never executes. "
+        "After status CLEAR, inspect intent.effect: for OBSERVE, call deputy_observe once with the returned "
+        "intent_id; for ACT, call deputy_act once with that intent_id and the exact approval_review "
+        "from CLEAR, subject to a fresh operator approval in the host. "
+        "Do not stop after CLEAR and do not perform the covered task through local tools. "
+        f"{_A4_PROFILE_OBSERVATIONS[A4_PROFILE]} "
+        f"{_A4_PROFILE_EFFECTS[A4_PROFILE]} "
+        "For CHOICE_REQUIRED, present the exact choices and wait for the user to select; do not infer a choice "
+        "or replace the unresolved request with a guess. Pass the selected choice_review unchanged to "
+        "deputy_choose, which also requires a fresh host approval. After a user-selected choice produces CLEAR, dispatch "
+        "only through the tool matching the returned effect. Stop on unsupported or missing arguments. "
+        "The server cannot independently authenticate the origin of request text or selection."
+    )
+
+    def _a4_prepare(
+        request: Annotated[str, Field(min_length=1, max_length=8000,
+                                      description=_A4_PREPARE_DESCRIPTION)],
+    ) -> A4PrepareResponse:
+        return A4PrepareResponse.model_validate(A4_SERVICE.prepare(request))
+
+    def _a4_choose(
+        prepare_id: _prepare_id,
+        choice_id: _choice_id,
+        choice_review: Annotated[str, Field(min_length=1, max_length=1800,
+            description="Copy the exact choice_review from the selected server-issued choice. The host must prompt the operator; A4 verifies this text against the sealed choice before issuing an intent.")],
+    ) -> A4PrepareResponse:
+        return A4PrepareResponse.model_validate(A4_SERVICE.choose(prepare_id, choice_id, choice_review))
+
+    def _a4_observe(intent_id: _intent_id) -> A4DispatchResponse:
+        return A4DispatchResponse.model_validate(A4_SERVICE.dispatch(intent_id, "observe"))
+
+    def _a4_act(
+        intent_id: _intent_id,
+        approval_review: Annotated[str, Field(min_length=1, max_length=1800,
+            description="Copy the exact approval_review from the server-issued CLEAR response. The host must prompt the operator; A4 verifies this operation, target, parameters, ticket and expiry against the sealed intent before dispatch.")],
+    ) -> A4DispatchResponse:
+        return A4DispatchResponse.model_validate(A4_SERVICE.dispatch(intent_id, "act", approval_review))
+
+    mcp.tool(
+        name="deputy_prepare",
+        description=_A4_PREPARE_DESCRIPTION,
+        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=False),
+    )(_a4_prepare)
+    mcp.tool(
+        name="deputy_choose",
+        description=(
+            "Select one exact server-issued option from a prior CHOICE_REQUIRED response. "
+            "Copy that option's choice_review exactly so the host approval card shows the bound operation, "
+            "target, parameters and expiry. The server verifies this text against the sealed choice. "
+            "After receiving the user's selection, the supported host must require an operator decision "
+            "for every call; a model cannot consent. "
+            "Selection persists one short-lived ticket and issues the corresponding intent; "
+            "If it returns CLEAR, dispatch once through deputy_observe for OBSERVE or deputy_act for ACT. "
+            "It cannot add selectors or execute work. The server cannot independently authenticate who "
+            "supplied the selection; the host approval prompt is mandatory."
+        ),
+        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=False),
+    )(_a4_choose)
+    mcp.tool(
+        name="deputy_observe",
+        description=(
+            "After deputy_prepare returns status CLEAR with intent.effect OBSERVE, call this once with its "
+            "intent_id to execute that exact observation-only intent. "
+            "The server records a one-shot claim and receipt; no target mutation occurs. "
+            "No operation names, selectors, paths, device IDs, or arguments are accepted."
+        ),
+        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False),
+    )(_a4_observe)
+    mcp.tool(
+        name="deputy_act",
+        description=(
+            "After deputy_prepare or deputy_choose returns status CLEAR with intent.effect ACT, call this "
+            "once with its intent_id and exact approval_review. The host must prompt the operator for "
+            "each call. The server verifies the displayed operation, registered target, parameters, "
+            "effect, ticket and expiry against the sealed intent before execution."
+        ),
+        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=False),
+    )(_a4_act)
+
+
 def main(argv=None):
+    global A4_SERVICE
     args = list(__import__("sys").argv[1:] if argv is None else argv)
     if args == ["--check"]:
         from preflight import check
@@ -1011,7 +1150,20 @@ def main(argv=None):
     if args:
         print("unsupported arguments; use --check or no arguments", file=__import__("sys").stderr)
         return 2
-    mcp.run(transport="stdio")
+    if CONFIG_ERROR:
+        print(json.dumps({"status": "BLOCKED", "code": CONFIG_ERROR}, sort_keys=True), file=__import__("sys").stderr)
+        return 1
+    if PROTOCOL_MODE == "focused-a4-beta":
+        try:
+            A4_SERVICE = A4IntentService(WORKER_SERVICE, A4_PROFILE)
+        except Exception:
+            print(json.dumps({"status": "BLOCKED", "code": "A4_RUNTIME_UNAVAILABLE"}, sort_keys=True), file=__import__("sys").stderr)
+            return 1
+    try:
+        mcp.run(transport="stdio")
+    finally:
+        if A4_SERVICE is not None:
+            A4_SERVICE.close()
     return 0
 
 

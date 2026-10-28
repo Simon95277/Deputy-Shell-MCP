@@ -5,12 +5,20 @@ import os
 import sys
 from pathlib import Path
 
-from config import ADB_EXE, ANDROID_SDK_ROOT, DEPUTY_SHELL_ROOT, RUNTIME_ROOT, TRUSTED_PYTHON
+from config import ADB_EXE, ANDROID_SDK_ROOT, DEPUTY_SHELL_ROOT, RUNTIME_ROOT, TRUSTED_PYTHON, a4_profile, protocol_mode
 from worker_v1.capabilities import load_registry
 
 
 def check() -> dict[str, object]:
     errors: list[str] = []
+    selected_mode = "invalid"
+    selected_profile = None
+    try:
+        selected_mode = protocol_mode()
+        selected_profile = a4_profile()
+    except ValueError as exc:
+        code = str(exc)
+        errors.append(code if code in {"PROTOCOL_MODE_INVALID", "A4_PROFILE_INVALID"} else "PROTOCOL_CONFIGURATION_INVALID")
     if sys.version_info < (3, 10):
         errors.append("PYTHON_VERSION_UNSUPPORTED")
     if importlib.util.find_spec("mcp") is None:
@@ -38,6 +46,8 @@ def check() -> dict[str, object]:
         "python": ".".join(str(x) for x in sys.version_info[:3]),
         "mcp_available": importlib.util.find_spec("mcp") is not None,
         "capability_count": capability_count,
+        "protocol_mode": selected_mode,
+        "a4_profile": selected_profile,
         "adb_configured": ADB_EXE.is_absolute() and ADB_EXE.is_file(),
         "android_sdk_configured": ANDROID_SDK_ROOT.is_dir(),
         "runtime_root": str(RUNTIME_ROOT),

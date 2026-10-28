@@ -36,8 +36,9 @@ provided authoritative token is preserved in bounded evidence.
   provider/model contract, runtime/coherence/snapshot markers, and the
   22-entry Workers registry.
 - Windows CPython 3.10 with the checked-in MCP 2.2.0 qualification lock, plus
-  Linux CPython 3.10 and the newest stable Python version recorded in the
-  workflow.
+  the explicitly configured Linux matrix (currently 3.10 and 3.14.7 in the
+  checked-in workflows). Those matrix values are not a claim about today's
+  newest Python release. Local beta qualification also covered Ubuntu/WSL 3.12.
 - Wheel and source-distribution builds, fresh wheel installs from unrelated
   working directories, and source-distribution-to-wheel rebuild installs.
 - Deterministic package-content audit and bounded public-tree / secret hygiene.
@@ -68,3 +69,72 @@ This workflow only qualifies and uploads an ephemeral GitHub Actions artifact.
 It does not create a release or tag, publish to PyPI, or change repository
 settings. No workflow accepts caller-provided shell commands, build commands,
 repository URLs, or upload destinations.
+
+The beta's local four-tool A4 qualification is separate from a public run of
+these workflows. Source regressions cover A4 schemas, nine mappings, review
+binding and restart/replay behavior; this documentation edit does not claim a
+new remote CI result or publish an artifact. A public prerelease needs its own
+approved final commit, verified packages and release decision.
+
+## Run the source gates locally
+
+Run from the repository root in a dedicated Python environment. On Windows
+CPython 3.10, install `mcp==2.2.0` using
+`--constraint constraints/qualification-windows-py310.txt`. On Linux, install
+`mcp==2.2.0` normally; that is a portability check, not the Windows lock.
+Do not install both runtime distributions into this one test environment.
+
+PowerShell synthetic prerequisites and source checks:
+
+```powershell
+$qualificationRoot = Join-Path $env:TEMP ("deputy-ci-" + [guid]::NewGuid())
+python scripts/ci_checks.py fixture --root "$qualificationRoot/repo" --sdk "$qualificationRoot/sdk" --docker-stub "$qualificationRoot/docker-stub.exe"
+$env:DEPUTYWORKERS_DEPUTY_SHELL_ROOT = "$qualificationRoot/repo"
+$env:DEPUTYWORKERS_RUNTIME_ROOT = "$qualificationRoot/workers-runtime"
+$env:DEPUTYWORKERS_EVIDENCE_ROOT = "$qualificationRoot/workers-runtime/evidence"
+$env:DEPUTYWORKERS_ANDROID_SDK_ROOT = "$qualificationRoot/sdk"
+$env:DEPUTYWORKERS_ADB_EXE = "$qualificationRoot/sdk/platform-tools/adb.exe"
+$env:DEPUTYWORKERS_PYTHON_EXE = (Get-Command python).Source
+$env:DEPUTYWORKERS_PROTOCOL_MODE = "legacy"
+$env:DEPUTYWORKERS_ENABLE_CONTROL_PLANE = "0"
+$env:DEPUTYAGENTS_DEPUTY_SHELL_ROOT = "$qualificationRoot/repo"
+$env:DEPUTYAGENTS_RUNTIME_ROOT = "$qualificationRoot/agents-runtime"
+$env:DEPUTYAGENTS_DOCKER_EXE = "$qualificationRoot/docker-stub.exe"
+$env:DEPUTYAGENTS_ENABLE_DIAGNOSTICS = "0"
+$env:DEPUTYAGENTS_ENABLE_CONTROL_PLANE = "0"
+python scripts/ci_checks.py contracts
+python scripts/ci_checks.py tests --component agents
+python scripts/ci_checks.py tests --component workers
+python scripts/ci_checks.py hygiene
+```
+
+Linux equivalents:
+
+```bash
+qualification_root="$(mktemp -d)"
+python scripts/ci_checks.py fixture --root "$qualification_root/repo" --sdk "$qualification_root/sdk" --docker-stub "$qualification_root/docker-stub"
+export DEPUTYWORKERS_DEPUTY_SHELL_ROOT="$qualification_root/repo"
+export DEPUTYWORKERS_RUNTIME_ROOT="$qualification_root/workers-runtime"
+export DEPUTYWORKERS_EVIDENCE_ROOT="$qualification_root/workers-runtime/evidence"
+export DEPUTYWORKERS_ANDROID_SDK_ROOT="$qualification_root/sdk"
+export DEPUTYWORKERS_ADB_EXE="$qualification_root/sdk/platform-tools/adb"
+export DEPUTYWORKERS_PYTHON_EXE="$(command -v python)"
+export DEPUTYWORKERS_PROTOCOL_MODE=legacy
+export DEPUTYWORKERS_ENABLE_CONTROL_PLANE=0
+export DEPUTYAGENTS_DEPUTY_SHELL_ROOT="$qualification_root/repo"
+export DEPUTYAGENTS_RUNTIME_ROOT="$qualification_root/agents-runtime"
+export DEPUTYAGENTS_DOCKER_EXE="$qualification_root/docker-stub"
+export DEPUTYAGENTS_ENABLE_DIAGNOSTICS=0
+export DEPUTYAGENTS_ENABLE_CONTROL_PLANE=0
+python scripts/ci_checks.py contracts
+python scripts/ci_checks.py tests --component agents
+python scripts/ci_checks.py tests --component workers
+python scripts/ci_checks.py hygiene
+```
+
+The placeholders satisfy source-test prerequisites and must never be used as
+real Docker/ADB executables. For process startup/discovery testing, use an
+explicit inert executable harness or qualified real prerequisites; a placeholder
+path passing preflight does not prove that a server can perform live work.
+The accepted beta baseline is 179 Agents and 399 Workers tests; report actual
+totals if tests are added. Preserve timing failures and investigate them.

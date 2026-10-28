@@ -2,6 +2,7 @@ include pyproject.toml README.md WORKER_CAPABILITIES.json
 include *.py
 recursive-include worker_v1 *.py
 recursive-include tests *.py
+recursive-include docs *.md
 prune runtime
 prune evidence
 prune android-sdk

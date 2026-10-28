@@ -34,6 +34,9 @@ class ProductionRunEngine:
                 ref=read_json(self.active)
                 if ref.get("run_id") != rid: return False
                 self.active.unlink(missing_ok=True); return True
+            except FileNotFoundError:
+                # Another reconciler already released this terminal run.
+                return True
             except PermissionError as exc:
                 if getattr(exc, "winerror", None) != 32 or attempt == 3: return False
                 time.sleep(0.025 * (attempt + 1))

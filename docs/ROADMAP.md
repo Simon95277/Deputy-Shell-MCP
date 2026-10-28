@@ -17,6 +17,10 @@
 
 ## Workers
 
+- **Focused A4 Beta candidate:** Workers `1.2.0b1`, protocol `DA-A4-BETA-2`,
+  has local source/package qualification for nine fixed semantics with legacy
+  default and all 22 operations preserved. Final documentation and publication
+  gates remain pending; the beta is not publicly released or production certified.
 - V2/C1 remains research only.
 - Future capability expansion requires an explicit architecture decision.
 - Destructive Android qualification remains outside ordinary contributor CI.

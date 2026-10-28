@@ -1,1295 +1,186 @@
-# DeputyAgentsMCP architecture and runtime contract
+# DeputyAgents architecture and runtime contract
 
-This document describes the current DeputyAgentsMCP implementation in enough
-detail that another model or engineer can reason about the system without
-reconstructing its behavior from commit history.
+This describes the current Agents `1.0.0` package. Start with the repository
+[installation guide](../../docs/INSTALLATION.md) and [host setup](../../docs/MCP_HOST_SETUP.md).
 
-It is implementation documentation, not an aspirational design document.
+| Contract | Current value |
+| --- | --- |
+| Runtime | `DA-PRIVACY-1` |
+| Source policy | `DA-PRIVACY-1-positive-policy-v1` |
+| Byte coherence | `DA-BYTE-COHERENCE-1` |
+| Source-policy schema | `deputy.agents.source-policy.v1` |
+| Durable job schema | `deputy.agents.job-state.v1` |
+| Trust model | `TRUSTED_SINGLE_OPERATOR_V1` |
 
-Current runtime contract marker:
+## Public interface and authority
 
-`DA-PRIVACY-1`
+The default production inventory is **one tool**, `deputy_recon(goal)`. The
+caller supplies a nonempty question, bounded to 4,096 UTF-8 bytes. The server
+fixes its configured production repository/workspace and handles preparation,
+execution, waiting, persistence and cleanup. The returned result is terminal;
+the model does not choose paths, a provider, executable, mount, timeout or job ID.
 
-Current primary snapshot policy:
+Owner-only `deputy_recon_start`, `deputy_recon_status` and
+`deputy_recon_cancel` are registered only with the exact server process setting
+`DEPUTYAGENTS_ENABLE_CONTROL_PLANE=1`. Only that administrative interface
+accepts the bounded `DEPUTY_SHELL`/`BRIDGE_LAB` workspace identifiers. It is not
+the preferred model interface. `BRIDGE_LAB` is a development fixture path, not
+the normal production snapshot policy.
 
-`DA-PRIVACY-1-positive-policy-v1`
+Development diagnostics `deputy_child_ping` and `deputy_git_probe` require
+`DEPUTYAGENTS_ENABLE_DIAGNOSTICS=1`. Missing, empty or other values disable
+the flags. Neither flag is a caller parameter or can be enabled by goal text.
+Normal deployments keep both flags off. The internal async concurrency limit
+is two; normal callers do not manage its lifecycle.
 
-Snapshot generation also uses `DA-BYTE-COHERENCE-1`. A private candidate is
-qualified only after all included files are hashed before copying, in the
-candidate, and after copying from the live source. Only a fully qualified
-candidate is promoted to the master; a failed refresh does not fall back to a
-stale master for the requesting job.
+Agents is advisory AI. Workers is the separate deterministic execution
+subsystem. An Agents report never grants permission for a Worker or host action.
 
-The source selection is represented by the server-owned
-`deputy.agents.source-policy.v1` contract. A deployment owner may configure a
-bounded relative-path policy through `DEPUTYAGENTS_SOURCE_POLICY_JSON`; no MCP
-argument or goal text can select or alter it. The default Deputy Shell policy
-retains the existing allowlist and approved-untracked set. Hard exclusions for
-reparse points, sensitive filenames, binary content, and content-secret
-findings remain implementation-owned. Secret scanning applies to candidate
-bytes before source-after hashing, coherence approval, publication, network
-creation, or worker launch.
-
-The short model-facing rules live in the repository root
-[`AGENTS.md`](../AGENTS.md).
-
----
-
-## 1. Purpose
-
-DeputyAgentsMCP gives a supervising model access to **real independent AI
-reconnaissance sessions** while preserving a server-controlled authority
-boundary.
-
-The core design rule is:
-
-> The model chooses intent. The server chooses authority.
-
-The caller can provide a bounded natural-language goal and choose one approved
-workspace identifier. The caller cannot directly control host paths, model
-provider, Docker invocation, network topology, mount sources, timeouts,
-executables, or worker profile.
-
-The current production use case is read-only reconnaissance of Deputy Shell.
-
-DeputyAgentsMCP is intentionally separate from DeputyWorkersMCP.
-
-- DeputyAgentsMCP = contained AI reasoning/reconnaissance.
-- DeputyWorkersMCP = deterministic bounded engineering operations.
-
-The projects solve different problems and should not be merged conceptually.
-
----
-
-## 2. High-level architecture
-
-The production DEPUTY_SHELL flow is:
+## Source-to-provider flow
 
 ```text
-supervising model / MCP client
-        |
-        | deputy_recon(goal)
-        v
-server.py
-        |
-        | async background thread
-        v
-bridge.executor.execute()
-        |
-        | trusted host-side snapshot refresh
-        v
-snapshot.py
-        |
-        | live repo read only
-        | sanitized master snapshot
-        v
-local-snapshots/DEPUTY_SHELL
-        |
-        | copy while snapshot lock is held
-        v
-per-job evidence/<job>/snapshot
-        |
-        | bind mount, read only
-        v
-OpenCode worker container
-        |
-        | internal Docker network only
-        v
-Squid proxy
-        |
-        | CONNECT allowlist
-        v
-opencode.ai:443
+deputy_recon(goal)
+  -> server-owned repository and source policy
+  -> canonical source selection and source-before hashes
+  -> copy a private candidate; hash candidate bytes
+  -> high-confidence local content-secret scan
+  -> source-after hashes and repository/path-state validation
+  -> whole-snapshot byte coherence
+  -> qualified shared master; per-job copy under snapshot lock
+  -> mount only that copy read-only at /workspace
+  -> OpenCode child; provider-only proxy egress
+  -> bounded public report; local evidence; mandatory cleanup
 ```
 
-The child does not receive the live Deputy Shell repository.
+Every included file must match the before/candidate/after SHA-256 comparison.
+Git branch/HEAD, worktree/index/untracked state and path identity also have to
+remain coherent. A failing refresh cannot execute a stale master as a fallback.
+The live repository and the shared master are never mounted in the child.
+
+The policy is server-owned JSON through `DEPUTYAGENTS_SOURCE_POLICY_JSON`.
+It accepts bounded normalized relative prefixes/root filenames, exclusions,
+approved untracked paths and size/count limits. No MCP caller can choose a
+policy file or alter this configuration. Unknown fields, absolute/drive paths,
+parent traversal and control characters are rejected.
+
+The built-in Deputy Shell policy allows `app/src/`, `backend/` and `tools/`,
+excluding `tools/linux-runtime/`. Allowed root files are `build.gradle`,
+`build.gradle.kts`, `settings.gradle`, `settings.gradle.kts`, `gradle.properties`,
+`gradlew` and `gradlew.bat`. `app/build.gradle.kts` is not included by that
+default. Absence from a snapshot does not prove absence from the live repository.
+The explicit approved-untracked set is maintained in
+[`source_policy.py`](../source_policy.py); all other untracked files are denied.
+
+Hard exclusions remain in code: sensitive filenames, binary content, symlinks,
+reparse points and unsafe linked parent components. The hard ceilings are
+10 MiB per file, 5,000 files and 50 MiB total; a deployment policy may lower
+them. The [installation guide](../../docs/INSTALLATION.md) gives a bounded policy
+example for a different repository layout.
+
+The exact candidate bytes are scanned before network/proxy/worker setup. A
+high-confidence secret finding fails closed as `SNAPSHOT_CONTENT_POLICY_BLOCKED`;
+no matched value, sensitive line or key body is written to the public result or
+audit. Evidence records bounded paths/detector IDs/counts. PII heuristics are
+separate warnings, not comprehensive detection or a default ban on every email.
+
+Git capture uses read-only commands, a trusted Git executable, no stdin,
+`GIT_OPTIONAL_LOCKS=0`, `GIT_TERMINAL_PROMPT=0` and bounded calls. A Git command
+has a three-second ceiling, shortened by the remaining preparation budget.
+Git trace evidence records command labels and timings without arbitrary output
+or the absolute source root. Git remote URLs and author identity are not needed
+to expose source to the child.
+
+## Provider and container contract
+
+The server selects provider `opencode`, model `muse-spark-1.3-contributor-free`
+and provider host `opencode.ai`. Selection source is `SERVER_OWNED`; the selector
+is supplied through the CLI and inline server configuration. Project content
+cannot replace it. A missing route or observed identity mismatch fails closed;
+there is no fallback provider/model. The qualified route required no injected
+credential. Provider pricing/availability is external; the model name is not
+a promise of free inference forever.
+
+OpenCode runs with the `plan` agent, JSON events and `/workspace` as its working
+directory. The goal is ordinary task content, never parsed as execution flags.
+Image digests and containment argv are authoritative in
+[`bridge/core.py`](../bridge/core.py). Installation lists the same references.
+No host OpenCode installation is required.
+
+The worker has a read-only root filesystem and read-only per-job workspace,
+all capabilities dropped, no-new-privileges, a PID limit of 128, 1 GiB memory
+and two CPUs. Writable tmpfs is bounded. It has no Docker socket or live source
+mount. Its only network is the per-job internal network. Squid is connected to
+that network and the bridge; its ACL allows CONNECT only to `opencode.ai:443`.
+Mount/network attestation checks this before normal child work.
+
+Provider-exposable source can leave the machine through inference. Secret/path
+filters do not make it confidential from the provider. Model output can quote
+source. Configured identity is recorded separately from observed identity;
+when runtime events omit identity fields, evidence does not claim verification.
+
+## Durability, cancellation and cleanup
+
+Durable job state is persisted atomically under the configured evidence root.
+Terminal results survive server restart. A recovered nonterminal job becomes
+`INTERRUPTED`, never fabricated success. Startup reconciliation only cleans
+positively owned resources for recovered interrupted jobs using the server's
+`ocb-*` resource naming contract. Unrelated Docker resources are not removed.
+
+An early cancellation is retained in `PENDING_CANCELS` and checked before
+preparation proceeds. Cancellation and reconciliation are idempotent. The
+in-memory `_JOBS` and executor `ACTIVE` maps complement durable state; they
+are not the only record of a job.
+
+Cleanup runs from `finally` and attempts to remove the worker, proxy and
+per-job network after success, error, timeout or cancellation. Cleanup evidence
+can list another concurrently owned job; interpret it per job rather than
+assuming every `ocb-*` entry belongs to the current request.
+
+## Time and evidence bounds
+
+| Bound in accepted code | Value |
+| --- | ---: |
+| Preparation | 30 seconds |
+| Individual snapshot Git call | At most 3 seconds |
+| True child idle | 180 seconds |
+| Active operation | 900 seconds |
+| Child absolute | 1,800 seconds |
+| Outer watchdog | 1,860 seconds |
+
+The public projection returns a bounded report on PASS or stable failure codes;
+it omits internal job/session IDs, host paths, raw exceptions and lifecycle
+mechanics. Local evidence can be richer and must stay operator-controlled.
+Containment exceptions have bounded local-only diagnostics including exception
+type/message/traceback and safely observed execution state; these are not MCP
+fields. A bounded report is not a guarantee that source-derived text is private.
+
+Paths are deployment configuration through `DEPUTYAGENTS_*`. Evidence, durable
+jobs and snapshots default under the per-user runtime root, outside installed
+code. The console entry point is `deputy-agents-mcp`; `--check` is read-only and
+does not prove live Docker/provider readiness. See [installation](../../docs/INSTALLATION.md).
+
+## Modules and maintenance
+
+- `server.py`: one normal recon tool, public projection, durable registry and gated admin tools.
+- `source_policy.py`, `snapshot.py`, `privacy.py`: policy validation, byte qualification and local scanning/sanitization.
+- `bridge/core.py`, `bridge/provider_contract.py`: request/argv/image/provider contract.
+- `bridge/executor.py`: containment lifecycle, progress/watchdogs and cleanup.
+- `preflight.py`, `config.py`: installed entry-point checks and operator-owned paths.
+
+Run the complete Agents suite, contract/import checks and package/privacy checks
+after relevant changes. Runtime semantics require a contract review/version
+decision. Do not casually change budgets, selection or provider authority.
+CI and packaging qualification already exist; public publication remains a
+separate approval step. OpenCode writable-state needs outside the fixed tmpfs
+set and provider availability remain operational limits. Hostile local writers,
+hostile shared users and multi-tenant isolation are outside this deployment.
+
+## Historical infrastructure qualification
+
+The following preserved record predates this documentation reconciliation. Its
+counts and timings describe that run only, not a current source inventory or
+a new qualification performed by editing this document.
 
-The child sees only a per-job copy of a sanitized snapshot mounted read-only
-at `/workspace`.
-
-The proxy is the only designed egress path.
-
----
-
-## 3. Repository modules and responsibilities
-
-### `server.py`
-
-MCP-facing server.
-
-Responsibilities:
-
-- creates the FastMCP server;
-- publishes public tools;
-- validates async concurrency at the public boundary;
-- owns the durable async job registry and in-memory active-execution index;
-- launches async worker threads;
-- exposes live/terminal status;
-- forwards cancellation;
-- exposes bounded diagnostics;
-- attaches the runtime contract marker to public results.
-
-Important current constants:
-
-```text
-RUNTIME_CONTRACT_VERSION = DA-PRIVACY-1
-MAX_CONCURRENT_RECON = 2
-```
-
-The async job registry is process-local memory:
-
-```text
-_JOBS
-_JOBS_LOCK
-```
-
-Therefore job status is not durable across MCP server restart.
-
-### `snapshot.py`
-
-Trusted host-side Deputy Shell snapshot builder.
-
-Responsibilities:
-
-- resolves the trusted Git executable;
-- captures the live repository state using read-only Git commands;
-- applies positive allowlist policy;
-- applies sensitive/binary/reparse exclusions;
-- includes only explicitly approved untracked files;
-- enforces file/count/size limits;
-- creates the sanitized master snapshot;
-- writes snapshot manifest and audit evidence;
-- compares repository state before and after capture;
-- fails closed if the source changes during capture.
-
-The worker does not call this logic.
-
-It runs on the trusted host side before Docker worker launch.
-
-### `bridge/core.py`
-
-Static bridge contract and pure helpers.
-
-Responsibilities:
-
-- pinned Docker executable path;
-- pinned OpenCode image digest;
-- pinned Squid image digest;
-- workspace identifiers;
-- worker-profile mapping;
-- request validation;
-- BRIDGE_LAB snapshot behavior;
-- result parsing;
-- Docker worker argv construction;
-- bounded public result shape.
-
-### `bridge/executor.py`
-
-Lifecycle orchestrator.
-
-Responsibilities:
-
-- preparation budget;
-- per-job evidence directory;
-- fresh snapshot preparation;
-- Docker internal-network creation;
-- Squid startup/configuration;
-- mount attestation;
-- worker launch;
-- event streaming;
-- session-id extraction;
-- state-aware watchdog logic;
-- timeout classification;
-- result/evidence persistence;
-- cleanup.
-
-### `bridge/ping_child.py`
-
-Minimal child-process transport diagnostic.
-
-It only prints:
-
-`pong`
-
-It has no repository or network behavior.
-
-### `tests/test_da_fast0.py`
-
-Main contract/regression suite.
-
-It tests public authority limits, snapshot semantics, containment, timeout
-logic, async lifecycle, diagnostics, mount validation, cleanup invariants, and
-Git-state behavior.
-
----
-
-## 4. MCP surface and control-plane separation
-
-### 4.1 Default model-facing tool: `deputy_recon(goal)`
-
-The normal production tool accepts only a natural-language goal. The server
-selects the configured production workspace/source and performs preparation,
-execution, waiting, persistence, reconciliation, and cleanup internally. A
-single call returns a terminal semantic outcome; run IDs and polling are not
-part of the normal model-facing protocol.
-
-### 4.2 Owner-only control plane: `deputy_recon_start(goal, workspace_id)`
-
-This asynchronous lifecycle API is available only when the server owner
-starts the process with `DEPUTYAGENTS_ENABLE_CONTROL_PLANE=1`. It is not
-registered in the default production surface.
-
-Preferred entry point for real work.
-
-Inputs:
-
-- `goal: str`
-- `workspace_id: "BRIDGE_LAB" | "DEPUTY_SHELL"`
-
-The caller does **not** provide:
-
-- worker profile;
-- model;
-- provider;
-- timeout;
-- Docker image;
-- network;
-- proxy;
-- path;
-- cwd;
-- mount;
-- executable.
-
-Server behavior:
-
-1. lock `_JOBS`;
-2. count active jobs with status STARTED, RUNNING, or CANCELLING;
-3. return `BUSY` if count is already 2;
-4. allocate a random 32-character hex job ID;
-5. create a STARTED/PREPARING record;
-6. start daemon thread `deputy-recon-<prefix>`;
-7. return immediately.
-
-Initial response contains:
-
-- status `STARTED`;
-- job ID;
-- runtime contract version;
-- workspace ID.
-
-### 4.3 Owner-only `deputy_recon_status(job_id)`
-
-Returns either:
-
-- `NOT_FOUND`;
-- live RUNNING/PREPARING state;
-- or the final durable result currently held in `_JOBS`.
-
-While running, it merges information from the public job record with the
-executor's `ACTIVE` state.
-
-Relevant live fields can include:
-
-- `execution_state`;
-- `preparation_phase`;
-- `preparation_elapsed_ms`;
-- `snapshot_lock_wait_ms`;
-- `session_id`;
-- `last_progress_type`;
-- `last_progress_age_ms`;
-- `active_operation_age_ms`.
-
-### 4.4 Owner-only `deputy_recon_cancel(job_id)`
-
-If unknown:
-
-`NOT_FOUND`
-
-If already terminal:
-
-returns the terminal result.
-
-Otherwise:
-
-1. marks the public job `CANCELLING`;
-2. calls executor cancellation;
-3. returns `CANCELLING`.
-
-Executor cancellation sets an internal cancellation event and attempts to
-remove the worker container.
-
-Known limitation: there is a narrow race before the executor registers the
-job in `ACTIVE`. The public layer can report `CANCELLING` while the internal
-cancel call sees `NOT_FOUND`. This is hardening debt, not a reason to widen
-authority.
-
-### 4.5 Lifecycle implementation
-
-The synchronous model-facing tool uses the same bounded executor and returns
-only a projected semantic outcome. Async APIs remain useful to an owner or
-admin client that explicitly enables the control plane, but normal model use
-must not start, poll, or cancel lifecycle jobs.
-
-### 4.5 Development diagnostic: `deputy_child_ping()`
-
-Development-only diagnostic tool. It is not registered in the default
-production MCP surface. The server owner must set
-`DEPUTYAGENTS_ENABLE_DIAGNOSTICS=1` before process startup.
-
-It verifies MCP -> child-process transport through two synthetic children:
-
-Python:
-
-```text
-python.exe -I -S -u bridge/ping_child.py
-```
-
-CMD:
-
-```text
-cmd.exe /d /c echo pong
-```
-
-Both are bounded to 15 seconds.
-
-This tool has no repository or provider purpose.
-
-### 4.6 Development diagnostic: `deputy_git_probe()`
-
-Development-only diagnostic tool introduced to diagnose MCP-hosted Git
-behavior. It is not registered in the default production MCP surface and is
-enabled only by the server-owned `DEPUTYAGENTS_ENABLE_DIAGNOSTICS=1` setting.
-
-It has no public parameters.
-
-It reports bounded identity metadata and runs a fixed read-only Git sequence in
-three modes:
-
-1. direct production environment;
-2. direct sanitized environment;
-3. async-thread production environment.
-
-It exists for diagnostics and is not part of the production product surface.
-
----
-
-## 5. Request authority and validation
-
-`bridge.core.validate_request()` enforces:
-
-- goal must be a non-empty string;
-- goal maximum encoded size = 4096 bytes;
-- workspace must exist in server-owned `WORKSPACES`;
-- worker profile must exist in server-owned `WORKERS`.
-
-Current worker mapping:
-
-```text
-RECON -> plan
-```
-
-Public MCP tools do not accept worker profile as caller input. The server
-hardcodes `RECON`.
-
-Current workspace identifiers:
-
-```text
-BRIDGE_LAB
-DEPUTY_SHELL
-```
-
-The server, not the caller, maps those identifiers to host locations.
-
----
-
-## 6. Deputy Shell source-state capture
-
-Before building a DEPUTY_SHELL snapshot, `snapshot.py` records a canonical
-repository state.
-
-The Git executable is resolved once using `shutil.which("git")`.
-
-If Git cannot be resolved, snapshot preparation fails closed.
-
-### 6.1 Git subprocess environment
-
-Every snapshot-owned Git subprocess uses:
-
-```text
-GIT_OPTIONAL_LOCKS=0
-GIT_TERMINAL_PROMPT=0
-stdin = DEVNULL
-stdout = PIPE
-stderr = PIPE
-```
-
-The command is run using the resolved server-owned Git executable and the
-server-owned Deputy Shell repository path.
-
-Per-command timeout:
-
-`3 seconds`
-
-or less if the remaining preparation budget is smaller.
-
-No snapshot Git operation is allowed to mutate the repository.
-
-### 6.2 Git commands
-
-State capture currently uses:
-
-```text
-git rev-parse --abbrev-ref --symbolic-full-name @{upstream}
-git diff --name-status --no-renames -z --
-git diff --cached --name-status --no-renames -z --
-git ls-files --others --exclude-standard -z
-git ls-files -z
-git branch --show-current
-git rev-parse HEAD
-```
-
-This captures:
-
-- upstream;
-- unstaged tracked changes;
-- staged/index changes;
-- untracked paths;
-- tracked-file inventory;
-- branch;
-- HEAD.
-
-The NUL-delimited forms avoid breaking on filenames containing spaces.
-
-### 6.3 Dirty semantics
-
-Repository dirty state is:
-
-```text
-worktree changes
-OR index changes
-OR untracked paths
-```
-
-Staged-only changes are therefore included.
-
-### 6.4 Before/after drift check
-
-The repository is captured once before snapshot construction and once after.
-
-The following are compared:
-
-- branch;
-- HEAD;
-- upstream;
-- worktree changes;
-- index changes;
-- untracked paths;
-- dirty flag.
-
-If any differ, snapshot creation fails with:
-
-`SNAPSHOT_SOURCE_CHANGED_DURING_CAPTURE`
-
-This prevents the worker from receiving a snapshot assembled across two
-different source states.
-
-### 6.5 Git trace
-
-For job-backed refreshes, Git calls can be recorded in:
-
-`git-trace.json`
-
-Each invocation records bounded events including:
-
-- ordinal;
-- capture generation `BEFORE` or `AFTER`;
-- command label;
-- event `START | PASS | TIMEOUT | ERROR`;
-- start timestamp;
-- elapsed milliseconds.
-
-The trace deliberately does not persist arbitrary command output or the host
-repository path.
-
----
-
-## 7. Deputy Shell snapshot policy
-
-Current policy version:
-
-`DA-PRIVACY-1-positive-policy-v1`
-
-The policy is positive-allowlist based.
-
-### 7.1 Allowed tracked prefixes
-
-```text
-app/src/
-backend/
-tools/
-```
-
-### 7.2 Explicit excluded prefix
-
-```text
-tools/linux-runtime/
-```
-
-### 7.3 Allowed repository-root files
-
-```text
-build.gradle
-build.gradle.kts
-settings.gradle
-settings.gradle.kts
-gradle.properties
-gradlew
-gradlew.bat
-```
-
-Important consequence:
-
-`app/build.gradle.kts` is **not currently included** because it is neither
-under `app/src/` nor a repository-root allowlisted file.
-
-A reconnaissance worker therefore cannot use the current DEPUTY_SHELL snapshot
-to verify that file directly.
-
-Do not confuse "not visible in the snapshot" with "absent from the repository."
-
-### 7.4 Approved untracked paths
-
-Untracked files are denied by default.
-
-The current explicit approved set is:
-
-```text
-app/src/androidTest/java/com/deputyshell/app/runtime/probe/P5a1bContractWideCandidateProbeHarnessTest.kt
-app/src/androidTest/java/com/deputyshell/app/runtime/probe/P5a1bPostInstallPreservationTest.kt
-app/src/executionSubstrateValidation/java/com/deputyshell/app/P5a1bTargetValidation.kt
-app/src/main/java/com/deputyshell/app/runtime/pack/P3bCanonicalGenerationTreeFingerprintV1.kt
-app/src/main/java/com/deputyshell/app/runtime/probe/CandidateProbeContractMatrixV1.kt
-app/src/test/java/com/deputyshell/app/runtime/probe/CandidateProbeContractMatrixV1Test.kt
-app/src/testExecutionSubstrateValidation/java/com/deputyshell/app/P5a1bTargetValidationTest.kt
-tools/android/verify_androidtest_dex_contents.py
-tools/android/verify_validation_target_dex_contents.py
-```
-
-Anything else untracked is excluded.
-
-The server owns this list. It is not caller-controlled.
-
-### 7.5 Sensitive-name exclusions
-
-The policy excludes paths/names matching sensitive vocabulary including:
-
-- `.env`;
-- `local.properties`;
-- `google-services.json`;
-- `signing.properties`;
-- credentials;
-- credential;
-- token;
-- password;
-- secret;
-- keystore;
-- `.jks`;
-- `.p12`;
-- `.pfx`;
-- `.pem`;
-- `.key`;
-- auth;
-- session.
-
-This is a defensive filename/path filter.
-
-It is not content-level secret detection and not a PII scanner.
-
-### 7.6 Binary exclusions
-
-Current binary suffix deny set includes:
-
-```text
-.apk
-.aab
-.apks
-.so
-.dll
-.exe
-.class
-.dex
-.jar
-.png
-.jpg
-.jpeg
-.gif
-.webp
-.mp4
-.ndjson
-.bin
-```
-
-Files are also sampled and rejected as non-text if the first 8192 bytes
-contain a NUL byte.
-
-### 7.7 Reparse/symlink handling
-
-Symlinks are rejected.
-
-On Windows, paths with the reparse-point file attribute are rejected.
-
-This prevents the allowlisted tree from escaping into another filesystem
-location through a link/reparse boundary.
-
-### 7.8 Snapshot limits
-
-Current hard limits:
-
-```text
-max file size   = 10 MiB
-max file count  = 5000
-max total bytes = 50 MiB
-```
-
-Limit violations fail closed.
-
-### 7.9 Snapshot manifest
-
-The master snapshot receives:
-
-`snapshot-manifest.json`
-
-Current schema:
-
-`deputy.recon.snapshot.v1`
-
-The manifest includes:
-
-- policy version;
-- workspace ID;
-- repo branch;
-- repo HEAD;
-- repo dirty state;
-- creation time;
-- file list;
-- per-file size;
-- per-file SHA-256;
-- source-state label;
-- file count;
-- total bytes.
-
-Current source-state labeling only distinguishes:
-
-- `TRACKED_MODIFIED`
-- `TRACKED_CLEAN`
-
-The current implementation does not emit a distinct manifest label for an
-approved untracked file. Models should not infer tracked status solely from
-that label.
-
-### 7.10 Snapshot audit
-
-The audit includes:
-
-- before state;
-- after state;
-- excluded paths grouped by reason;
-- untracked classification;
-- reparse points;
-- hard limits;
-- `provider_exposure`.
-
-For Deputy Shell:
-
-`provider_exposure = true`
-
-That flag is intentional.
-
----
-
-## 8. Snapshot publication and locking
-
-For DEPUTY_SHELL jobs, `bridge.executor` uses a process-local
-`SNAPSHOT_LOCK`.
-
-The lock covers:
-
-1. fresh master snapshot creation;
-2. publication to the shared master location;
-3. copy from the shared master into the job-specific snapshot directory.
-
-This prevents two local reconnaissance jobs from refreshing/copying the shared
-snapshot concurrently.
-
-The worker does not mount the shared master.
-
-It mounts only:
-
-`<job evidence directory>/snapshot`
-
-The mount is checked mechanically before launch.
-
----
-
-## 9. Mount attestation
-
-`_validate_mount_contract()` requires exactly one mount targeting
-`/workspace`.
-
-For the DEPUTY_SHELL worker, the mount must satisfy:
-
-- source = this job's snapshot directory;
-- target = `/workspace`;
-- read-only flag present.
-
-The generated Docker argv is rejected if it contains either:
-
-- live Deputy Shell repository path;
-- shared master snapshot path.
-
-On success, public containment metadata reports:
-
-```text
-workspace_mount_source = JOB_SANITIZED_SNAPSHOT
-workspace_mount_target = /workspace
-workspace_mount_read_only = true
-live_repo_mounted = false
-shared_master_mounted = false
-network_policy = PROVIDER_ONLY
-```
-
-This attestation describes the generated launch contract. It does not grant the
-child any new authority.
-
----
-
-## 10. Docker worker containment
-
-### 10.1 Pinned images
-
-OpenCode:
-
-`ghcr.io/anomalyco/opencode@sha256:0d3c9551ea2522fcfd23fbc2e302fc87218d6c198bff277e8ab44d93a3bd6d3d`
-
-Squid:
-
-`ubuntu/squid@sha256:6a097f68bae708cedbabd6188d68c7e2e7a38cedd05a176e1cc0ba29e3bbe029`
-
-The image digests are server-owned constants.
-
-### 10.2 Worker restrictions
-
-The generated worker command includes:
-
-```text
-docker run
---rm
---network <per-job internal network>
---read-only
---cap-drop=ALL
---security-opt no-new-privileges
---pids-limit 128
---memory 1g
---cpus 2
-```
-
-Writable temporary filesystems:
-
-```text
-/tmp                         64 MiB
-/root/.cache                128 MiB
-/root/.local/share/opencode 128 MiB
-/root/.config/opencode       64 MiB
-```
-
-Workspace mount:
-
-```text
-<job snapshot> -> /workspace, read only
-```
-
-No Docker socket is mounted.
-
-No DeputyWorkers path is mounted.
-
-No live Deputy Shell path is mounted.
-
-### 10.3 OpenCode command
-
-The image is invoked as:
-
-```text
-opencode run
-  --model opencode/muse-spark-1.3-contributor-free
-  --format json
-  --agent plan
-  --dir /workspace
-  <goal>
-```
-
-The worker profile `RECON` maps to OpenCode's `plan` agent. The server-owned
-contract is provider `opencode`, model `muse-spark-1.3-contributor-free`, and
-provider host `opencode.ai`. The launch also supplies a deterministic,
-secret-free `OPENCODE_CONFIG_CONTENT` value containing the same model for the
-OpenCode config layer. The server does not accept provider, model, endpoint,
-config-path, credential, or OpenCode-flag parameters from callers.
-
-The task goal remains ordinary final task content and is never tokenized into
-argv. Workspace-local `opencode.json` or `.opencode` content may be present in
-the snapshot, but the server-owned inline config and explicit CLI selector
-take precedence for provider/model selection. The container receives no
-credential values or arbitrary host environment.
-
-OpenCode's JSON events do not guarantee provider/model identity fields. The
-result therefore records configured identity, selection enforcement, and any
-observed identity separately. `verified` is true only when both observed
-fields are present and match; missing observed fields are reported as
-`runtime_identity_observable = false`, not inferred.
-
----
-
-## 11. Network containment
-
-Each job receives a unique Docker network named from its job ID.
-
-The job network is created with:
-
-`docker network create --internal`
-
-The worker is attached only to that internal network.
-
-The Squid proxy is:
-
-1. started on Docker's normal bridge network;
-2. connected to the job's internal network.
-
-The proxy is therefore dual-homed.
-
-The worker reaches external service only through HTTP(S) proxy environment
-variables:
-
-```text
-HTTP_PROXY=http://<proxy>:3128
-HTTPS_PROXY=http://<proxy>:3128
-NO_PROXY=localhost,127.0.0.1,::1
-```
-
-### 11.1 Squid ACL
-
-Current generated Squid policy:
-
-```text
-http_port 3128
-acl SSL_ports port 443
-acl CONNECT method CONNECT
-acl allowed_host dstdomain opencode.ai
-http_access allow CONNECT allowed_host SSL_ports
-http_access deny all
-cache deny all
-access_log /var/log/squid/access.log squid
-cache_log none
-pid_filename none
-```
-
-So the designed external network authority is:
-
-`CONNECT opencode.ai:443`
-
-Everything else is denied by Squid.
-
-The worker also lacks a normal external Docker network, so direct external
-egress is blocked by the internal-network design.
-
-This provider-only egress path was physically qualified before the production
-fresh-recon gate was closed.
-
----
-
-## 12. Preparation lifecycle
-
-Preparation has a hard budget of:
-
-`30000 ms`
-
-The budget begins at executor start and includes snapshot work plus Docker
-network/proxy setup up to worker launch.
-
-Preparation phases are persisted to `preparation-state.json`.
-
-Important phases include:
-
-```text
-SNAPSHOT_LOCK_WAIT
-SNAPSHOT_REPO_STATE
-SNAPSHOT_GIT_UPSTREAM
-SNAPSHOT_GIT_WORKTREE_DIFF
-SNAPSHOT_GIT_INDEX_DIFF
-SNAPSHOT_GIT_UNTRACKED
-SNAPSHOT_GIT_TRACKED_FILES
-SNAPSHOT_GIT_BRANCH
-SNAPSHOT_GIT_HEAD
-SNAPSHOT_PUBLICATION
-NETWORK_CREATE
-PROXY_START
-PROXY_CONNECT
-PROXY_READY
-MOUNT_VALIDATE
-WORKER_LAUNCH
-```
-
-A preparation overrun raises `PreparationTimeout` and returns terminal:
-
-```text
-status = TIMEOUT
-timeout_reason = PREPARATION_TIMEOUT
-execution_state = PREPARING
-```
-
-Terminal reporting can occur slightly after the nominal 30-second boundary
-because exception unwinding/evidence/cleanup have their own bounded overhead.
-
-The 30-second value is a worker-launch preparation boundary, not a promise that
-the entire function returns by exactly 30.000 seconds. Candidate snapshots,
-job-copy bytes, coherence evidence, and privacy audit evidence are prepared
-before the final deadline guard. Only then is the shared last-known-good
-snapshot replaced; a preparation timeout before that publication preserves the
-previous generation. Per-stage timings are stored in bounded local evidence.
-
----
-
-## 13. Child event processing
-
-The OpenCode process is launched with:
-
-- stdout pipe;
-- stderr pipe;
-- stdin = DEVNULL;
-- text mode.
-
-Two daemon reader threads consume stdout/stderr.
-
-Stdout is interpreted as newline-delimited JSON where possible.
-
-The parser recognizes session IDs and text events.
-
-A successful final response requires a valid session ID.
-
-Final public text is bounded to the last 8192 characters assembled from text
-events.
-
-Malformed event lines are remembered and can cause `OUTPUT_INVALID`.
-
----
-
-## 14. Execution-state machine and watchdog
-
-The state-aware watchdog exists because a useful model operation can be quiet
-for substantially longer than a normal idle period.
-
-Meaningful event types currently include:
-
-```text
-session
-step_start
-tool_use
-tool_result
-step_finish
-text
-output
-message
-error
-```
-
-### 14.1 State transitions
-
-`step_start`:
-
-- sets state to `ACTIVE_STEP`;
-- records outstanding step ID;
-- records active-operation start time.
-
-`step_finish`:
-
-- sets state to `IDLE`;
-- clears outstanding step metadata.
-
-`tool_use` / `tool_result` while already active:
-
-- preserve `ACTIVE_STEP`.
-
-terminal-like events:
-
-- set `TERMINAL`.
-
-### 14.2 Timeout limits
-
-Current effective watchdog limits:
-
-```text
-true idle timeout       = 180000 ms  (3 min)
-active operation timeout = 900000 ms (15 min)
-child absolute timeout   = 1800000 ms (30 min)
-outer watchdog           = 1860000 ms (31 min)
-```
-
-While an operation is `ACTIVE_STEP`, the normal idle timeout is suppressed.
-
-This is deliberate: model/tool execution can be alive even without output.
-
-### 14.3 Watchdog evidence
-
-Adapter-contract evidence reports `child_idle_timeout_ms`,
-`active_operation_timeout_ms`, `child_absolute_timeout_ms`, and
-`outer_watchdog_ms`. The current executor passes the absolute timeout into
-process collection, additionally bounded by the remaining outer watchdog.
-
-### 14.4 Durable lifecycle state
-
-The asynchronous MCP layer writes a bounded `deputy.agents.job-state.v1`
-record atomically beneath the server-owned evidence root. Terminal results are
-reloadable after an MCP restart. Nonterminal records are recovered as
-`INTERRUPTED`; they are not treated as successful completion. Startup
-reconciliation uses only the existing `ocb-<job>` ownership naming contract,
-records what it found, and attempts cleanup only for those positively owned
-resources. Unrelated runtime resources are left untouched.
-
-Cancellation has an explicit pending handoff. The public job is registered and
-the request is durably marked before the executor's active entry is guaranteed.
-If cancellation arrives in that interval, the executor records the job ID in a
-pending set and checks it immediately on registration, before snapshot or child
-execution. Repeated cancellation and reconciliation are idempotent.
-
-Models reading the code must not interpret 300000 ms as the actual hard stop.
-
----
-
-## 15. Result classification
-
-After process completion:
-
-- cancellation event set -> `CANCELLED`;
-- parsed API-style error -> `MODEL_ERROR`;
-- other parsed error -> `CLIENT_ERROR`;
-- malformed output or missing session ID -> `OUTPUT_INVALID`;
-- nonzero process exit -> `CLIENT_ERROR`;
-- otherwise -> `PASS`.
-
-Preparation timeout returns `TIMEOUT`.
-
-Child watchdog timeout returns `TIMEOUT` plus a specific reason such as:
-
-- `CHILD_IDLE_TIMEOUT`;
-- `ACTIVE_OPERATION_TIMEOUT`;
-- `CHILD_ABSOLUTE_TIMEOUT`.
-
-Unhandled containment/setup exceptions normally remain
-`CONTAINMENT_ERROR`.
-
-The public async layer additionally uses:
-
-- `STARTED`;
-- `RUNNING`;
-- `CANCELLING`;
-- `BUSY`;
-- `NOT_FOUND`.
-
----
-
-## 16. Evidence layout
-
-The executor stores job evidence under the single authoritative evidence root:
-
-```text
-<DEPUTYAGENTS_EVIDENCE_ROOT>/<job-id>/
-```
-
-This path is derived from the server-owned `BRIDGE_FIXTURES` configuration and
-is not caller-controlled. Runtime roots default outside the installed package:
-`%LOCALAPPDATA%\\DeputyShellAgentsMCP` on Windows, `$XDG_STATE_HOME/DeputyShellAgentsMCP`
-on POSIX, or the platform application-support directory on macOS.
-`DEPUTYAGENTS_EVIDENCE_ROOT`, `DEPUTYAGENTS_JOB_STATE_ROOT`, and
-`DEPUTYAGENTS_SNAPSHOT_ROOT` are deployment configuration overrides, not MCP
-caller parameters. `request.json` stores a goal SHA-256 and byte length rather
-than the raw caller goal.
-
-Typical files can include:
-
-```text
-request.json
-preparation-state.json
-git-trace.json
-snapshot/
-snapshot-manifest.json
-squid.conf
-network-contract.json
-adapter-contract.json
-worker-stdout.txt
-worker-stderr.txt
-worker-state.json
-squid-access.log
-result.json
-cleanup.json
-```
-
-Not every file exists on every path.
-
-For example, a preparation failure before network creation will not have
-network/adapter/worker evidence.
-
-`snapshot.py` also writes a trusted audit under DeputyAgentsMCP's ignored
-evidence area.
-
-All evidence/local snapshot paths are ignored from Git.
-
-### 16.1 Evidence bounds
-
-Generic worker stdout/stderr evidence writes are bounded to:
-
-`8192 bytes`
-
-The public result text is also bounded.
-
-### 16.2 Cleanup evidence nuance
-
-`cleanup.json` records resource names and a post-cleanup inventory from
-`list_resources()`.
-
-That inventory lists all Docker resources with the DeputyAgents `ocb-`
-prefix, not only resources belonging to the current job.
-
-Therefore when two jobs run concurrently, another valid job can appear in the
-remaining-resource list.
-
-A literal zero-container/zero-network result is strongest when no other
-DeputyAgents job is active.
-
----
-
-## 17. Cleanup contract
-
-Cleanup happens in executor `finally`.
-
-The executor attempts to remove:
-
-1. worker container;
-2. proxy container;
-3. per-job network.
-
-Cleanup runs on success, timeout, cancellation, and failure paths.
-
-The worker also has Docker `--rm`, but explicit removal is still attempted.
-
-The cleanup path intentionally does not depend on the model cooperating.
-
----
-
-## 18. Privacy and trust boundary
-
-### 18.1 What the child does not receive
-
-By design, the DEPUTY_SHELL worker does not receive:
-
-- the live Deputy Shell checkout;
-- arbitrary host directories;
-- Docker socket;
-- DeputyWorkers;
-- other repositories;
-- secret files excluded by snapshot policy;
-- unapproved untracked paths.
-
-### 18.2 What can leave the machine
-
-The sanitized snapshot is provider-exposable.
-
-If the child reads source from `/workspace`, that source can become part of
-the model/provider request.
-
-Therefore:
-
-**"The live repository is not mounted" is true.**
-
-**"Source never leaves the machine" is false.**
-
-This architecture protects host/repository authority from the untrusted child.
-It is not a confidentiality guarantee against the external inference provider.
-
-Provider retention/training/privacy behavior is external to this server and
-must not be invented by a model reading this repository.
-
-### 18.3 Secret and PII detection limits
-
-The candidate generation is scanned locally for the documented high-confidence
-credential patterns before coherence approval and provider setup. The scan
-records only relative paths and detector IDs for blocking findings; matched
-values are not persisted or returned. It is deterministic but is not a
-complete credential detector. Email and personal absolute-path indicators are
-separate local warnings, not comprehensive PII detection and not blanket
-blocking. Provider-exposable source remains externally exposed by design.
-
----
-
-## 19. BRIDGE_LAB behavior
-
-`BRIDGE_LAB` exists as a synthetic/controlled validation workspace.
-
-Unlike DEPUTY_SHELL, it uses `bridge.core.build_snapshot()` rather than the
-trusted live-repository snapshot policy.
-
-The BRIDGE_LAB builder excludes obvious generated/sensitive paths and produces
-a manifest with its own older policy marker.
-
-Do not use BRIDGE_LAB results as proof that the live Deputy Shell freshness
-path works.
-
-The production gate was closed only after a real DEPUTY_SHELL job passed.
-
----
-
-## 20. Current diagnostics
-
-### 20.1 Child ping
-
-Use when validating that the MCP host can create simple child processes.
-
-Expected:
-
-```text
-Python PASS / pong
-CMD PASS / pong
-```
-
-### 20.2 Git probe
-
-`deputy_git_probe()` was introduced after intermittent MCP-hosted snapshot Git
-timeouts.
-
-It runs the fixed Git sequence:
-
-```text
-upstream
-HEAD
-branch
-worktree diff
-index diff
-untracked enumeration
-tracked-file enumeration
-```
-
-three times under:
-
-- direct production environment;
-- direct sanitized environment;
-- async-thread production environment.
-
-The current production Git helper is shared with the probe so diagnostics
-exercise the same subprocess I/O behavior.
-
-This tool should eventually be removed or moved behind a development-only
-surface after the surrounding infrastructure is hardened.
-
----
-
-## 21. Validated production state
 
 The infrastructure gate was closed after a real asynchronous DEPUTY_SHELL
 reconnaissance succeeded.
@@ -1335,213 +226,3 @@ What should remain invariant are the authority, snapshot, containment, and
 cleanup contracts.
 
 ---
-
-## 22. Known implementation debt
-
-Current known debt includes:
-
-### Async durability
-
-The durable job-state schema is `deputy.agents.job-state.v1`. Terminal results
-survive MCP restart. Nonterminal jobs recovered during startup are marked
-`INTERRUPTED`; recovery does not fabricate success and only positively owned
-`ocb-*` resources are considered for cleanup. Unrelated Docker resources are
-left untouched. Reconciliation is idempotent.
-
-### Cancellation registration contract
-
-Cancellation accepted before executor registration is retained as a pending
-request. The executor observes that request before preparation proceeds, so
-early cancellation is not lost. Cancellation and reconciliation are
-idempotent.
-
-### Default and owner-enabled tool inventories
-
-The default production MCP surface contains exactly one tool: `deputy_recon`.
-Async lifecycle/status/cancellation tools are owner-only and require the exact
-`DEPUTYAGENTS_ENABLE_CONTROL_PLANE=1` process setting. Diagnostics
-`deputy_child_ping` and `deputy_git_probe` remain separately gated by
-`DEPUTYAGENTS_ENABLE_DIAGNOSTICS=1`. Neither flag is an MCP parameter, and
-neither can be enabled by a caller goal. The normal protocol excludes
-control-plane state; local durable evidence and internal lifecycle behavior
-remain available to the server owner.
-
-### Path configuration and packaging
-
-Host paths are server-owned and configurable through `DEPUTYAGENTS_*`
-environment variables. Public MCP callers still cannot provide arbitrary host
-paths. Packaging and installer ergonomics remain future work.
-
-### Evidence-root legacy
-
-Job evidence is stored under the configured evidence root rather than a
-fully self-contained DeputyAgents-owned runtime root.
-
-### OpenCode writable state
-
-The worker currently provides tmpfs for several OpenCode directories but not
-every possible state/lock location.
-
-Past experimentation identified writable state/lock behavior as future
-hardening territory.
-
-### Provider/model pinning
-
-Provider/model selection is server-owned and explicit in both the OpenCode
-argv and inline config. The fixed provider/model contract is:
-
-- provider: `opencode`
-- model: `muse-spark-1.3-contributor-free`
-- selection source: `SERVER_OWNED`
-- provider host: `opencode.ai`
-
-There is no fallback provider/model. A malformed contract, unavailable route,
-or observed identity mismatch produces a bounded failure instead of a generic
-successful reconnaissance result.
-
-### Privacy/generalization
-
-The server-owned `deputy.agents.source-policy.v1` configuration can describe a
-bounded relative-path policy for one configured repository. The built-in
-`DEPUTY_SHELL_DEFAULT_V1` policy preserves the previously qualified source set;
-MCP callers cannot select a policy or repository path. Candidate bytes are
-checked by the deterministic high-confidence secret detector before coherence
-approval, publication, network creation, or child launch. PII indicators are
-local warnings, not comprehensive detection or blanket blocking.
-
-The supported deployment remains `TRUSTED_SINGLE_OPERATOR_V1`. The machine
-owner and deployment configuration are trusted; MCP callers do not receive
-host authority. This server does not claim hostile multi-user, tenant,
-per-user filesystem, or per-user credential isolation. Provider-exposable
-source is externally exposed by design, and model output may quote that source.
-
----
-
-## 23. Non-goals
-
-DeputyAgentsMCP is not intended to:
-
-- give an AI unrestricted shell access to the host;
-- let a child mutate Deputy Shell;
-- expose Docker to the child;
-- replace deterministic verification with model judgment;
-- give callers arbitrary execution controls;
-- make provider-visible source "local only";
-- act as a persistent distributed job scheduler;
-- provide durable multi-host orchestration.
-
----
-
-## 24. Engineering invariants
-
-Changes should preserve these invariants unless an explicit architecture
-milestone intentionally replaces them.
-
-### Authority
-
-- public caller chooses goal/workspace only;
-- server owns execution authority;
-- missing capability fails closed.
-
-### Snapshot
-
-- live Deputy Shell is never mounted to the child;
-- DEPUTY_SHELL snapshot is refreshed before a job;
-- policy remains server-owned;
-- untracked files remain deny-by-default;
-- sensitive/reparse/binary exclusions stay fail-closed;
-- source drift is detected.
-
-### Container
-
-- worker remains untrusted;
-- read-only root filesystem;
-- capabilities dropped;
-- no-new-privileges;
-- resource limits;
-- read-only workspace;
-- no Docker socket.
-
-### Network
-
-- worker internal network only;
-- external egress only through the proxy;
-- proxy allowlist remains narrow and explicit.
-
-### Lifecycle
-
-- preparation remains bounded;
-- child runtime remains bounded;
-- useful long-running active operations are not mistaken for idle;
-- cleanup remains mandatory.
-
-### Results
-
-- status classification remains explicit;
-- evidence remains bounded;
-- public results do not expose unnecessary host paths.
-
----
-
-## 25. Required maintenance when behavior changes
-
-When modifying runtime behavior:
-
-1. update implementation;
-2. update tests;
-3. update this document;
-4. update `AGENTS.md` if model-facing rules changed;
-5. update `README.md` if user-facing behavior changed;
-6. bump `RUNTIME_CONTRACT_VERSION` for live MCP semantic changes;
-7. run full DeputyAgents suite;
-8. run bridge suite;
-9. run Python compile validation;
-10. run staged sensitive scan;
-11. if containment/snapshot/runtime behavior materially changed, re-run the
-    appropriate live qualification before claiming production validation.
-
-Do not use documentation changes to silently redefine the runtime contract.
-The implementation and tests remain authoritative.
-
----
-
-## 26. How a supervising model should use DeputyAgents
-
-For a normal Deputy Shell engineering milestone:
-
-1. decide whether independent AI reconnaissance will materially help;
-2. if yes, call `deputy_recon` once with a narrow read-only goal;
-3. treat its terminal report as evidence, not authority;
-4. verify important findings directly or with deterministic DeputyWorkers;
-5. make the engineering decision at the supervising-model level.
-
-A subagent should be used for investigation, not as a way to evade the
-supervisor's responsibility.
-
-For high-risk milestones, task-local instructions may intentionally prohibit
-LLM subagents while still allowing deterministic DeputyWorkers. That is a
-valid use of the architecture.
-
----
-
-## 27. Summary
-
-DeputyAgentsMCP is a bounded delegation layer:
-
-```text
-supervisor
-  -> intent
-DeputyAgents server
-  -> trusted fresh snapshot
-  -> per-job read-only copy
-  -> constrained Docker worker
-  -> provider-only proxy
-  -> bounded independent AI session
-  -> evidence/result
-supervisor
-  -> judgment
-```
-
-The design goal is not "trust the child."
-
-The design goal is to make the child useful **without requiring trust**.

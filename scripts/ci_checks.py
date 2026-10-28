@@ -26,7 +26,7 @@ WORKERS_TOOLS = {
     "deputy_observe",
     "deputy_act",
 }
-EXPECTED_TESTS = {"agents": 179, "workers": 355}
+EXPECTED_TESTS = {"agents": 179, "workers": 399}
 FORBIDDEN_ARCHIVE_PARTS = {
     ".git", ".venv", "evidence", "runtime", "runs", "logs", "snapshots",
     "local-snapshots", "bridge-lab", "deputy-shell-source", "android-sdk",

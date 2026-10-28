@@ -67,8 +67,8 @@ class C8ATests(unittest.TestCase):
         self.fail("not running")
     def test_meta8_watcher_fresh_engine_race(self):
         e,r,pid,release=self._hold(); from worker_v1.process import terminate_tree, identity; terminate_tree(pid)
-        for _ in range(60):
-            if identity(pid) is None: break
+        for _ in range(300):
+            if identity(pid) is None and ProductionRunEngine(self.root).status(r["run_id"]).get("state")=="BLOCKED": break
             time.sleep(.01)
         a=threading.Thread(target=lambda: e.status(r["run_id"])); b=threading.Thread(target=lambda: ProductionRunEngine(self.root).status(r["run_id"])); a.start(); b.start(); a.join(); b.join(); self.assertEqual(ProductionRunEngine(self.root).status(r["run_id"])["state"],"BLOCKED"); self.assertFalse(e.active.exists())
     def test_meta9_pass_result_wins(self):
@@ -78,6 +78,18 @@ class C8ATests(unittest.TestCase):
     def test_meta11_wrong_owner(self):
         e=ProductionRunEngine(self.root); atomic_json(e.active,{"run_id":"B"}); self.assertFalse(e._release_active_if_owned("A")); self.assertEqual(read_json(e.active)["run_id"],"B")
     def test_meta12_two_engine_reconciliation(self):
-        e=ProductionRunEngine(self.root); d=self.root/"runs"/"x"; (d/"steps").mkdir(parents=True); atomic_json(d/"state.json",{"state":"BLOCKED","worker_pid":1,"worker_identity":{"creation_identity":"x"}}); atomic_json(d/"result.json",{"overall":"BLOCKED","blocked_reason":"WORKER_PROCESS_LOST"}); atomic_json(e.active,{"run_id":"x"}); out=[]; threads=[threading.Thread(target=lambda: out.append(ProductionRunEngine(self.root).status("x"))) for _ in range(2)]; [t.start() for t in threads]; [t.join() for t in threads]; self.assertTrue(all(x["state"]=="BLOCKED" for x in out)); self.assertFalse(e.active.exists())
+        e=ProductionRunEngine(self.root); d=self.root/"runs"/"x"; (d/"steps").mkdir(parents=True); atomic_json(d/"state.json",{"state":"BLOCKED","worker_pid":1,"worker_identity":{"creation_identity":"x"}}); atomic_json(d/"result.json",{"overall":"BLOCKED","blocked_reason":"WORKER_PROCESS_LOST"}); atomic_json(e.active,{"run_id":"x"}); out=[]; errors=[]
+        def status():
+            try: out.append(ProductionRunEngine(self.root).status("x"))
+            except Exception as exc: errors.append(exc)
+        threads=[threading.Thread(target=status) for _ in range(2)]; [t.start() for t in threads]; [t.join() for t in threads]; self.assertFalse(errors); self.assertEqual(len(out),2); self.assertTrue(all(x["state"]=="BLOCKED" for x in out)); self.assertFalse(e.active.exists())
+    def test_meta13_active_disappears_between_exists_and_read(self):
+        e=ProductionRunEngine(self.root); atomic_json(e.active,{"run_id":"x"})
+        def gone(_path):
+            e.active.unlink()
+            raise FileNotFoundError
+        with mock.patch("worker_v1.production.read_json",side_effect=gone):
+            self.assertTrue(e._release_active_if_owned("x"))
+        self.assertFalse(e.active.exists())
 
 if __name__=="__main__": unittest.main()

@@ -38,6 +38,7 @@ sessions/
 *.keystore
 
 # Python / test artifacts
+**/build/
 **/__pycache__/
 *.egg-info/
 *.py[cod]
