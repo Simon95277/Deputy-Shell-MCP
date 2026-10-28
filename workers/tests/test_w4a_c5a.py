@@ -56,7 +56,71 @@ class C5ATests(unittest.TestCase):
     def test_c2_5_cancellation(self):
         r=self.engine.start(self.hold_job()); self.wait_running(r); self.assertEqual(self.engine.cancel(r["run_id"])["status"],"CANCELLED")
     def test_c2_6_worker_loss(self):
-        r=self.engine.start(self.hold_job()); st=self.wait_running(r); production.terminate_tree(st["worker_pid"]); time.sleep(.05); self.assertEqual(ProductionRunEngine(self.temp).status(r["run_id"])["state"],"BLOCKED")
+        import subprocess
+
+        launched = []
+        real_popen = subprocess.Popen
+
+        def launch(*args, **kwargs):
+            child = real_popen(*args, **kwargs)
+            launched.append(child)
+            return child
+
+        # Retain the actual Popen object, not a reopened/reusable PID. Windows
+        # Popen.wait uses its original process handle's exit signal; POSIX uses
+        # its synchronized child wait. No creation-identity disappearance test.
+        with mock.patch.object(production.subprocess, "Popen", side_effect=launch):
+            r = self.engine.start(self.hold_job())
+        self.assertEqual(len(launched), 1)
+        child = launched[0]
+        self.addCleanup(child.wait, timeout=5)
+        self.addCleanup(self.release_worker)
+        st = self.wait_running(r)
+        self.assertEqual(child.pid, st["worker_pid"])
+        self.assertEqual(st["worker_identity"], r["worker_identity"])
+        if os.name == "nt":
+            self.assertEqual(production.identity(child.pid), st["worker_identity"])
+
+        last_status, last_result = st, {}
+
+        def diagnostics():
+            return repr({
+                "pid": child.pid, "exit_code": child.returncode,
+                "expected_identity": st["worker_identity"],
+                "status": {k: last_status.get(k) for k in
+                           ("status", "state", "terminal_reason")},
+                "result": {k: last_result.get(k) for k in
+                           ("status", "overall", "blocked_reason")},
+                "active_exists": self.engine.active.exists(),
+            })[:1500]
+
+        production.terminate_tree(child.pid)
+        try:
+            child.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            self.fail("worker exit deadline expired: " + diagnostics())
+        self.assertIsNotNone(child.returncode, diagnostics())
+
+        # Exit and durable finalization are separate conditions. A process may
+        # be gone while the watcher still flushes its terminal result/state.
+        deadline = time.monotonic() + 5
+        while True:
+            fresh = ProductionRunEngine(self.temp)
+            last_status = fresh.status(r["run_id"])
+            last_result = fresh.result(r["run_id"])
+            if (last_status.get("state") == "BLOCKED"
+                    and last_status.get("terminal_reason") == "WORKER_PROCESS_LOST"
+                    and last_result.get("status") == "READY"
+                    and last_result.get("overall") == "BLOCKED"
+                    and last_result.get("blocked_reason") == "WORKER_PROCESS_LOST"
+                    and not fresh.active.exists()):
+                break
+            if time.monotonic() >= deadline:
+                self.fail("worker-loss finalization deadline expired: " + diagnostics())
+            time.sleep(.01)
+        self.assertEqual(last_status["state"], "BLOCKED", diagnostics())
+        self.assertEqual(last_result["overall"], "BLOCKED", diagnostics())
+        self.assertFalse(self.engine.active.exists(), diagnostics())
     def test_c2_7_production_blocks_synthetic(self):
         r=self.engine.start(self.hold_job()); self.wait_running(r); s=DurableRunEngine(self.temp).start({"schema":"deputy.worker-w2-synthetic.v1","duration_seconds":1,"outcome":"PASS","emit_stderr":False}); self.assertEqual(s["status"],"REJECTED"); self.release_worker()
     def test_c2_8_synthetic_blocks_production(self):
