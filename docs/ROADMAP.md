@@ -10,6 +10,11 @@
   `deputy_child_ping` behind explicit server-owned development configuration.
 - **Completed in provider/model contract:** server-owned explicit provider and
   model selection with bounded configured-versus-observed identity evidence.
+- **In progress — OpenCode free-model selection:** expose the live zero-price
+  model catalog, persist one caller-selected tool-capable chat model for reuse,
+  and request a new selection only when the saved model is no longer eligible.
+  The provider and endpoint remain fixed; each price check is point-in-time and
+  does not promise that a model remains free after launch.
 - **Completed in packaging/reproducibility (Phase #8):** installable Agents and
   Workers distributions, stable console entry points, portable runtime roots,
   deterministic qualification constraints, bounded Windows bootstrap, and

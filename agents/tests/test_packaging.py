@@ -21,6 +21,7 @@ class AgentsPackagingTests(unittest.TestCase):
         for root in (config.BRIDGE_ROOT, config.EVIDENCE_ROOT, config.JOB_STATE_ROOT, config.SNAPSHOT_ROOT):
             self.assertTrue(root.is_absolute())
             self.assertIn(runtime, root.resolve().parents)
+        self.assertEqual(config.MODEL_SELECTION_PATH, config.RUNTIME_ROOT / "model-selection.json")
 
     def test_evidence_root_is_shared_by_executor_and_server(self):
         self.assertIs(executor.EVIDENCE_ROOT, config.EVIDENCE_ROOT)

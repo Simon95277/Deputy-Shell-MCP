@@ -19,6 +19,8 @@ from config import EVIDENCE_ROOT, JOB_STATE_ROOT
 from bridge import executor
 from bridge.executor import execute, ACTIVE as EXECUTOR_ACTIVE, LOCK as EXECUTOR_LOCK
 from bridge.provider_contract import RUNTIME_CONTRACT_VERSION
+from bridge.model_catalog import ModelCatalogError, list_free_models, require_recon_model
+from bridge.model_preference import ModelPreferenceError, load_model_id, save_model_id
 from privacy import public_error_code
 
 
@@ -31,7 +33,7 @@ MAX_CONCURRENT_RECON = 2
 _JOBS = {}
 _JOBS_LOCK = threading.Lock()
 DURABLE_SCHEMA = "deputy.agents.job-state.v1"
-TERMINAL_STATES = {"PASS", "TIMEOUT", "CANCELLED", "MODEL_ERROR", "CLIENT_ERROR", "OUTPUT_INVALID", "IDENTITY_MISMATCH", "CONTAINMENT_ERROR", "INTERRUPTED"}
+TERMINAL_STATES = {"PASS", "TIMEOUT", "CANCELLED", "MODEL_ERROR", "CLIENT_ERROR", "OUTPUT_INVALID", "IDENTITY_MISMATCH", "CONTAINMENT_ERROR", "INTERRUPTED", "BLOCKED"}
 
 def _durable_path(job_id):
     return JOB_STATE_ROOT / f"{job_id}.json"
@@ -45,7 +47,7 @@ def _atomic_json(path, value):
 def _persist_job(job, result=None):
     payload = {"schema": DURABLE_SCHEMA, "job_id": job["job_id"], "workspace_id": job["workspace_id"],
                "status": job.get("status"), "execution_state": job.get("execution_state"),
-               "created_at": job.get("created_at"), "updated_at": job.get("updated_at", time.time()),
+               "model_id": job.get("model_id"), "created_at": job.get("created_at"), "updated_at": job.get("updated_at", time.time()),
                "started_at": job.get("started_at"), "reconciled": job.get("reconciled", False)}
     if result is not None:
         payload["result"] = result
@@ -132,16 +134,21 @@ def _cleanup_metadata(job_id):
     except Exception:
         return None
 
-def _run_async(job_id, goal, workspace_id):
+def _run_async(job_id, goal, workspace_id, model_id):
     with _JOBS_LOCK:
         _JOBS[job_id]["started_at"] = time.time()
         _persist_job(_JOBS[job_id])
     try:
-        output = execute(goal=goal, workspace_id=workspace_id, worker_profile="RECON", job_id=job_id)
+        output = execute(goal=goal, workspace_id=workspace_id, worker_profile="RECON", job_id=job_id, model_id=model_id)
         output["runtime_contract_version"] = RUNTIME_CONTRACT_VERSION
         output["cleanup"] = _cleanup_metadata(job_id)
         with _JOBS_LOCK:
             _JOBS[job_id].update({"status": output.get("status"), "result": output, "updated_at": time.time()})
+            _persist_job(_JOBS[job_id], output)
+    except ModelCatalogError as exc:
+        with _JOBS_LOCK:
+            output = {"status": "BLOCKED", "code": exc.code, "retryable": exc.code == "MODEL_CATALOG_UNAVAILABLE", "job_id": job_id, "workspace_id": workspace_id, "runtime_contract_version": RUNTIME_CONTRACT_VERSION}
+            _JOBS[job_id].update({"status": "BLOCKED", "result": output, "updated_at": time.time()})
             _persist_job(_JOBS[job_id], output)
     except Exception as exc:
         with _JOBS_LOCK:
@@ -157,11 +164,14 @@ def _public_job_state(job):
         return {"status": "INTERRUPTED", "job_id": job["job_id"], "workspace_id": job["workspace_id"], "runtime_contract_version": RUNTIME_CONTRACT_VERSION, "execution_state": "INTERRUPTED", "reconciled": bool(job.get("reconciled"))}
     with EXECUTOR_LOCK:
         live = dict(EXECUTOR_ACTIVE.get(job["job_id"], {}))
-    return {"status": "RUNNING", "job_id": job["job_id"], "workspace_id": job["workspace_id"], "runtime_contract_version": RUNTIME_CONTRACT_VERSION, "session_id": live.get("session_id"), "execution_state": live.get("execution_state", job.get("execution_state", "PREPARING")), "elapsed_ms": int((time.time() - job["created_at"]) * 1000), "preparation_phase": live.get("preparation_phase", job.get("preparation_phase")), "preparation_elapsed_ms": int((time.time() - job["created_at"]) * 1000), "snapshot_lock_wait_ms": live.get("snapshot_lock_wait_ms"), "last_progress_type": live.get("last_progress_type"), "last_progress_age_ms": live.get("last_progress_age_ms"), "active_operation_age_ms": live.get("active_operation_age_ms")}
+    return {"status": "RUNNING", "job_id": job["job_id"], "workspace_id": job["workspace_id"], "model_id": job.get("model_id"), "runtime_contract_version": RUNTIME_CONTRACT_VERSION, "session_id": live.get("session_id"), "execution_state": live.get("execution_state", job.get("execution_state", "PREPARING")), "elapsed_ms": int((time.time() - job["created_at"]) * 1000), "preparation_phase": live.get("preparation_phase", job.get("preparation_phase")), "preparation_elapsed_ms": int((time.time() - job["created_at"]) * 1000), "snapshot_lock_wait_ms": live.get("snapshot_lock_wait_ms"), "last_progress_type": live.get("last_progress_type"), "last_progress_age_ms": live.get("last_progress_age_ms"), "active_operation_age_ms": live.get("active_operation_age_ms")}
 
 
 def _public_recon_result(output: dict) -> dict:
     status = output.get("status")
+    if output.get("model_selection_error"):
+        code = output["model_selection_error"]
+        return {"status": "BLOCKED", "code": code, "retryable": code == "MODEL_CATALOG_UNAVAILABLE"}
     if status == "PASS":
         report = output.get("text")
         if not isinstance(report, str):
@@ -169,7 +179,8 @@ def _public_recon_result(output: dict) -> dict:
         import re
         if re.search(r"(?i)\b[A-Z]:[\\/]|(?<![A-Za-z0-9_])/(?:Users|home|tmp|var|opt|root|workspace|private|mnt)/", report):
             report = "[HOST_PATH_REDACTED]"
-        return {"status": "PASS", "report": report[:8192]}
+        inference = output.get("inference_contract", {})
+        return {"status": "PASS", "report": report[:8192], "model_id": inference.get("model_id")}
     codes = {
         "TIMEOUT": "RECON_TIMEOUT", "MODEL_ERROR": "PROVIDER_UNAVAILABLE",
         "CLIENT_ERROR": "RECON_CLIENT_ERROR", "OUTPUT_INVALID": "RECON_OUTPUT_INVALID",
@@ -181,24 +192,95 @@ def _public_recon_result(output: dict) -> dict:
             "retryable": status in {"TIMEOUT", "MODEL_ERROR", "CLIENT_ERROR", "CONTAINMENT_ERROR", "INTERRUPTED"}}
 
 
-@mcp.tool(description="Inspect the server-configured repository snapshot for one bounded read-only reconnaissance goal. Source selection, provider, model, containment and lifecycle are server-owned; returns one terminal report.", annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=False, openWorldHint=True))
-def deputy_recon(goal: str) -> dict:
-    """Run bounded reconnaissance against the server-configured source only."""
+@mcp.tool(description="List current OpenCode models whose catalog reports zero text input/output price and show the saved model selection. Call this only for initial model setup or after deputy_recon returns MODEL_SELECTION_REQUIRED, not before every recon task. If selection.status is REQUIRED, choose a recon-compatible model_id and configure it with deputy_select_model. A saved choice is reused until the live catalog no longer accepts it.", annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True))
+def deputy_models() -> dict:
+    """List free OpenCode models and report whether a persistent selection is ready."""
     try:
-        output = execute(goal=goal, workspace_id="DEPUTY_SHELL", worker_profile="RECON")
+        catalog = list_free_models()
+    except ModelCatalogError as exc:
+        return {"status": "BLOCKED", "code": exc.code, "retryable": True}
+    try:
+        selected_model_id = load_model_id()
+    except ModelPreferenceError as exc:
+        catalog["selection"] = {"status": "BLOCKED", "code": exc.code}
+        return catalog
+    if selected_model_id is None:
+        catalog["selection"] = {"status": "REQUIRED", "model_id": None}
+        return catalog
+    selected = next((item for item in catalog["models"] if item["model_id"] == selected_model_id), None)
+    if selected is None or selected.get("recon_compatible") is not True:
+        catalog["selection"] = {
+            "status": "REQUIRED",
+            "model_id": selected_model_id,
+            "reason": "MODEL_NO_LONGER_AVAILABLE" if selected is None else "MODEL_NO_LONGER_RECON_COMPATIBLE",
+        }
+        return catalog
+    catalog["selection"] = {"status": "CONFIGURED", "model_id": selected_model_id, "name": selected["name"]}
+    return catalog
+
+
+@mcp.tool(description="Set the persistent OpenCode model used by deputy_recon. Call only during initial setup or when deputy_recon says the saved model is no longer eligible. Choose a recon-compatible model_id from deputy_models. The server verifies current zero pricing before saving; the selection is reused for ordinary recon calls.", annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True))
+def deputy_select_model(model_id: str) -> dict:
+    """Persist one caller-selected, currently free, tool-capable OpenCode model."""
+    try:
+        selected = require_recon_model(model_id)
+        configured_at = save_model_id(model_id)
+    except ModelCatalogError as exc:
+        return {"status": "BLOCKED", "code": exc.code, "retryable": exc.code == "MODEL_CATALOG_UNAVAILABLE"}
+    except ModelPreferenceError as exc:
+        return {"status": "BLOCKED", "code": exc.code, "retryable": False}
     except Exception:
         return {"status": "BLOCKED", "code": "RECON_UNAVAILABLE", "retryable": True}
+    return {"status": "PASS", "model_id": model_id, "name": selected["name"], "configured_at_utc": configured_at}
+
+
+def _model_selection_required(reason: str, previous_model_id: str | None = None) -> dict:
+    result = {"status": "BLOCKED", "code": "MODEL_SELECTION_REQUIRED", "reason": reason, "retryable": False}
+    if previous_model_id is not None:
+        result["previous_model_id"] = previous_model_id
+    try:
+        result["models"] = list_free_models()["models"]
+    except ModelCatalogError as exc:
+        result["catalog_error"] = exc.code
+    return result
+
+
+@mcp.tool(description="Inspect the server-configured repository snapshot for one bounded read-only reconnaissance goal. The server reuses the persistent model selected with deputy_select_model and rechecks its zero price and availability before launch. If it is no longer available, the result requests a new selection and includes current choices.", annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=False, openWorldHint=True))
+def deputy_recon(goal: str) -> dict:
+    """Run bounded reconnaissance using the persistent, catalog-verified model."""
+    try:
+        model_id = load_model_id()
+    except ModelPreferenceError as exc:
+        return {"status": "BLOCKED", "code": exc.code, "retryable": False}
+    if model_id is None:
+        return _model_selection_required("MODEL_NOT_CONFIGURED")
+    try:
+        output = execute(goal=goal, workspace_id="DEPUTY_SHELL", worker_profile="RECON", model_id=model_id)
+    except ModelCatalogError as exc:
+        if exc.code in {"MODEL_NOT_CURRENTLY_FREE", "MODEL_NOT_RECON_COMPATIBLE"}:
+            return _model_selection_required(exc.code, model_id)
+        return {"status": "BLOCKED", "code": exc.code, "retryable": exc.code == "MODEL_CATALOG_UNAVAILABLE"}
+    except Exception:
+        return {"status": "BLOCKED", "code": "RECON_UNAVAILABLE", "retryable": True}
+    if output.get("model_selection_error") in {"MODEL_NOT_CURRENTLY_FREE", "MODEL_NOT_RECON_COMPATIBLE"}:
+        return _model_selection_required(output["model_selection_error"], model_id)
     return _public_recon_result(output)
 
 def deputy_recon_start(goal: str, workspace_id: Literal["BRIDGE_LAB", "DEPUTY_SHELL"]) -> dict:
+    try:
+        model_id = load_model_id()
+    except ModelPreferenceError as exc:
+        return {"status": "BLOCKED", "code": exc.code, "retryable": False}
+    if model_id is None:
+        return _model_selection_required("MODEL_NOT_CONFIGURED")
     with _JOBS_LOCK:
         active = sum(1 for job in _JOBS.values() if job.get("status") in {"STARTED", "RUNNING", "CANCELLING"})
         if active >= MAX_CONCURRENT_RECON:
             return {"status": "BUSY", "runtime_contract_version": RUNTIME_CONTRACT_VERSION}
         job_id = uuid.uuid4().hex
-        _JOBS[job_id] = {"job_id": job_id, "workspace_id": workspace_id, "created_at": time.time(), "status": "STARTED", "execution_state": "PREPARING"}
+        _JOBS[job_id] = {"job_id": job_id, "workspace_id": workspace_id, "created_at": time.time(), "status": "STARTED", "execution_state": "PREPARING", "model_id": model_id}
         _persist_job(_JOBS[job_id])
-    threading.Thread(target=_run_async, args=(job_id, goal, workspace_id), daemon=True, name=f"deputy-recon-{job_id[:8]}").start()
+    threading.Thread(target=_run_async, args=(job_id, goal, workspace_id, model_id), daemon=True, name=f"deputy-recon-{job_id[:8]}").start()
     return {"status": "STARTED", "job_id": job_id, "runtime_contract_version": RUNTIME_CONTRACT_VERSION, "workspace_id": workspace_id}
 
 def deputy_recon_status(job_id: str) -> dict:

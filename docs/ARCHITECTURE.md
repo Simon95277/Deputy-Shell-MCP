@@ -13,8 +13,10 @@ executables.
 
 The normal control-tower contract is deliberately small:
 
-- Agents: `deputy_recon(goal)`; the server binds the configured repository,
-  manages the complete contained run, and returns a semantic outcome.
+- Agents: `deputy_models()` lists current zero-price OpenCode text models;
+  `deputy_select_model(model_id)` stores one valid choice for reuse, and
+  `deputy_recon(goal)` uses it until the live catalog no longer accepts it.
+  The server binds the repository and manages the complete contained run.
 - Workers: `deputy_observe(request)` and `deputy_act(request)`; each request
   selects one typed operation from its MCP-native schema, and the server
   executes it to terminal state.

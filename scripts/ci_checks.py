@@ -20,13 +20,15 @@ from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parents[1]
 AGENTS_TOOLS = {
+    "deputy_models",
+    "deputy_select_model",
     "deputy_recon",
 }
 WORKERS_TOOLS = {
     "deputy_observe",
     "deputy_act",
 }
-EXPECTED_TESTS = {"agents": 179, "workers": 399}
+EXPECTED_TESTS = {"agents": 186, "workers": 399}
 FORBIDDEN_ARCHIVE_PARTS = {
     ".git", ".venv", "evidence", "runtime", "runs", "logs", "snapshots",
     "local-snapshots", "bridge-lab", "deputy-shell-source", "android-sdk",
@@ -168,7 +170,8 @@ def contract_check() -> None:
 
     sys.path.insert(0, str(ROOT / "agents"))
     try:
-        from bridge.provider_contract import MODEL_ID, PROVIDER_ID, RUNTIME_CONTRACT_VERSION, SELECTION_SOURCE, evidence
+        from bridge.provider_contract import MODEL_SELECTION_CONTRACT_VERSION, PROVIDER_ID, RUNTIME_CONTRACT_VERSION, SELECTION_SOURCE, evidence
+        from bridge.model_catalog import CATALOG_URL
         import snapshot
         # Both standalone projects intentionally own top-level config modules.
         # Import each under its own component path, as the installed runtimes do.
@@ -182,8 +185,9 @@ def contract_check() -> None:
             "coherence": snapshot.COHERENCE_VERSION == "DA-BYTE-COHERENCE-1",
             "snapshot_policy": snapshot.POLICY_VERSION == "DA-PRIVACY-1-positive-policy-v1",
             "provider": PROVIDER_ID == "opencode",
-            "model": MODEL_ID == "muse-spark-1.3-contributor-free",
-            "selection": SELECTION_SOURCE == "SERVER_OWNED",
+            "model_catalog": CATALOG_URL == "https://opencode.ai/zen/v1/models",
+            "model_selection_contract": MODEL_SELECTION_CONTRACT_VERSION == "DA-MODEL-CATALOG-1",
+            "selection": SELECTION_SOURCE == "MCP_CALLER_LIVE_ZERO_PRICE_CATALOG",
             "runtime_identity_honest": evidence()["runtime_identity_observable"] is False and evidence()["verified"] is False,
             "agents_tools": tools == AGENTS_TOOLS,
             "workers_tools": worker_tools == WORKERS_TOOLS,
@@ -201,7 +205,7 @@ def contract_check() -> None:
         fail("contract consistency failed: " + ", ".join(k for k, ok in checks.items() if not ok))
 
     docs = {
-        ROOT / "README.md": ("opencode", "muse-spark-1.3-contributor-free", "deputy_recon(goal)", "deputy_observe", "deputy_act"),
+        ROOT / "README.md": ("opencode", "deputy_models()", "model_id", "deputy_observe", "deputy_act"),
         ROOT / "agents" / "docs" / "ARCHITECTURE.md": (
             "DA-PRIVACY-1", "DA-BYTE-COHERENCE-1", "DA-PRIVACY-1-positive-policy-v1",
         ),
@@ -213,7 +217,8 @@ def contract_check() -> None:
             fail(f"high-value documentation contract mismatch: {path.name}")
     print(json.dumps({"status": "PASS", "agents_tools": sorted(tools), "workers_tools": sorted(worker_tools), "diagnostics_default": "DISABLED",
                       "runtime": RUNTIME_CONTRACT_VERSION, "coherence": snapshot.COHERENCE_VERSION,
-                      "snapshot_policy": snapshot.POLICY_VERSION, "provider": PROVIDER_ID, "model": MODEL_ID,
+                      "snapshot_policy": snapshot.POLICY_VERSION, "provider": PROVIDER_ID,
+                      "model_selection_contract": MODEL_SELECTION_CONTRACT_VERSION,
                       "selection_source": SELECTION_SOURCE, "runtime_identity_observable": False,
                       "workers_capabilities": 22, "mcp": "2.2.0"}, sort_keys=True))
 
@@ -505,7 +510,7 @@ def release_bundle(args: argparse.Namespace) -> None:
             "public_result_sanitizer": "DA-PUBLIC-RESULT-SANITIZER-1",
             "trust_model": "TRUSTED_SINGLE_OPERATOR_V1",
             "provider": "opencode",
-            "model": "muse-spark-1.3-contributor-free",
+            "model_selection": "MCP_CALLER_LIVE_ZERO_PRICE_CATALOG",
             "agents_production_tools": sorted(AGENTS_TOOLS),
         },
         "packages": [

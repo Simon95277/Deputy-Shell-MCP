@@ -2,7 +2,8 @@ from __future__ import annotations
 import hashlib, json, os, shutil, subprocess, tempfile, threading, time, traceback, uuid
 from pathlib import Path
 from .core import LAB, DOCKER, OPENCODE_IMAGE, SQUID_IMAGE, WORKSPACES, WORKERS, build_snapshot, build_argv, parse_events, result, validate_request
-from .provider_contract import MODEL_ID, MODEL_SELECTOR, PROVIDER_HOST, PROVIDER_ID, evidence, inline_config_content, validate_contract
+from .provider_contract import PROVIDER_HOST, PROVIDER_ID, evidence, inline_config_content, validate_contract
+from .model_catalog import ModelCatalogError, require_recon_model
 from config import EVIDENCE_ROOT
 from snapshot import SNAPSHOT_ROOT, REPO, create_snapshot, PreparationTimeout
 from privacy import ContentPolicyBlocked
@@ -23,6 +24,11 @@ PENDING_CANCELS = set()
 SNAPSHOT_LOCK = threading.Lock()
 class PreparationCancelled(RuntimeError):
     pass
+
+class ModelSelectionChanged(RuntimeError):
+    def __init__(self, code):
+        super().__init__(code)
+        self.code = code
 
 def _run(argv, timeout=20):
     return subprocess.run(argv, capture_output=True, text=True, timeout=timeout, check=False)
@@ -272,12 +278,13 @@ def cancel(job_id):
     _run([str(DOCKER),"rm","-f",item["resources"]["worker"]],timeout=15)
     return {"status":"CANCEL_REQUESTED","job_id":job_id}
 
-def execute(goal, workspace_id="BRIDGE_LAB", worker_profile="RECON", inject_failure=False, inject_timeout=False, job_id=None):
+def execute(goal, workspace_id="BRIDGE_LAB", worker_profile="RECON", inject_failure=False, inject_timeout=False, job_id=None, model_id=None):
     validate_request(goal,workspace_id,worker_profile)
-    validate_contract()
+    selected_model = require_recon_model(model_id)
+    validate_contract(model_id)
     job=job_id or uuid.uuid4().hex; res=_docker_resources(job); started=time.monotonic(); preparation_deadline=started + PREPARATION_BUDGET_MS / 1000; cancel_event=threading.Event(); marks={}
     evdir=EVIDENCE_ROOT/job; snap=evdir/"snapshot"; evdir.mkdir(parents=True,exist_ok=False)
-    request={"goal_sha256":hashlib.sha256(goal.encode("utf-8")).hexdigest(),"goal_byte_length":len(goal.encode("utf-8")),"workspace_id":workspace_id,"worker_profile":worker_profile,"job_id":job}; (evdir/"request.json").write_text(json.dumps(request,indent=2),encoding="utf-8")
+    request={"goal_sha256":hashlib.sha256(goal.encode("utf-8")).hexdigest(),"goal_byte_length":len(goal.encode("utf-8")),"workspace_id":workspace_id,"worker_profile":worker_profile,"job_id":job,"model_id":model_id,"selection_source":"MCP_CALLER_LIVE_ZERO_PRICE_CATALOG","initial_catalog_check_utc":selected_model["checked_at_utc"]}; (evdir/"request.json").write_text(json.dumps(request,indent=2),encoding="utf-8")
     state={"resources":res,"cancel":cancel_event,"execution_state":"PREPARING","created_at":time.time()};
     with LOCK:
         ACTIVE[job]=state
@@ -300,7 +307,7 @@ def execute(goal, workspace_id="BRIDGE_LAB", worker_profile="RECON", inject_fail
         if p.returncode: raise RuntimeError(p.stderr[-1024:])
         _prepare_guard(preparation_deadline, state); _preparation_state(evdir, job, workspace_id, state, "PROXY_CONNECT", started)
         _prep_run([str(DOCKER),"network","connect",res["network"],res["proxy"]],preparation_deadline,15)
-        (evdir/"network-contract.json").write_text(json.dumps({"network":res["network"],"internal":True,"worker_networks":[res["network"]],"proxy_networks":["bridge",res["network"]],"squid_image":SQUID_IMAGE,"provider_host":PROVIDER_HOST,"provider_id":PROVIDER_ID,"model_id":MODEL_ID,"proxy_port":3128,"policy":"PROVIDER_ONLY"},indent=2),encoding="utf-8")
+        (evdir/"network-contract.json").write_text(json.dumps({"network":res["network"],"internal":True,"worker_networks":[res["network"]],"proxy_networks":["bridge",res["network"]],"squid_image":SQUID_IMAGE,"provider_host":PROVIDER_HOST,"provider_id":PROVIDER_ID,"model_id":model_id,"proxy_port":3128,"policy":"PROVIDER_ONLY"},indent=2),encoding="utf-8")
         ready=False
         _prepare_guard(preparation_deadline, state); _preparation_state(evdir, job, workspace_id, state, "PROXY_READY", started)
         for _ in range(20):
@@ -315,12 +322,16 @@ def execute(goal, workspace_id="BRIDGE_LAB", worker_profile="RECON", inject_fail
         marks["preparation_ms"]=int((time.monotonic()-started)*1000)
         _prepare_guard(preparation_deadline, state)
         _preparation_state(evdir, job, workspace_id, state, "MOUNT_VALIDATE", started)
-        argv=build_argv(snap,goal); argv.insert(2,"--name"); argv.insert(3,res["worker"]); argv=[res["worker"] if x=="REQUIRED_NETWORK" else x for x in argv]; argv=[res["network"] if x=="REQUIRED_NETWORK" else x for x in argv]
+        try:
+            selected_model = require_recon_model(model_id)
+        except ModelCatalogError as exc:
+            raise ModelSelectionChanged(exc.code) from None
+        argv=build_argv(snap,goal,model_id); argv.insert(2,"--name"); argv.insert(3,res["worker"]); argv=[res["worker"] if x=="REQUIRED_NETWORK" else x for x in argv]; argv=[res["network"] if x=="REQUIRED_NETWORK" else x for x in argv]
         argv=[x.replace("http://PROXY:3128",f"http://{res['proxy']}:3128") for x in argv]
         argv[argv.index("--network")+1]=res["network"]
         containment = _validate_mount_contract(argv, workspace_id, snap)
         # Docker image is already in argv; replace the logical proxy host with the job name.
-        (evdir/"adapter-contract.json").write_text(json.dumps({"network":res["network"],"proxy":res["proxy"],"worker":res["worker"],"squid_image":SQUID_IMAGE,"opencode_image":OPENCODE_IMAGE,"agent":"plan","provider_id":PROVIDER_ID,"model_id":MODEL_ID,"provider_host":PROVIDER_HOST,"selection_source":"SERVER_OWNED","selection_method":"CLI_MODEL_AND_INLINE_SERVER_CONFIG","inline_config_content":inline_config_content(),"workspace_config_policy":"SERVER_CONFIG_AND_CLI_WIN","worker_argv":argv,"stdin":"DEVNULL","preparation_budget_ms":PREPARATION_BUDGET_MS,"child_idle_timeout_ms":CHILD_IDLE_TIMEOUT_MS,"active_operation_timeout_ms":ACTIVE_OPERATION_TIMEOUT_MS,"child_absolute_timeout_ms":CHILD_ABSOLUTE_TIMEOUT_MS,"outer_watchdog_ms":OUTER_WATCHDOG_MS},indent=2),encoding="utf-8")
+        (evdir/"adapter-contract.json").write_text(json.dumps({"network":res["network"],"proxy":res["proxy"],"worker":res["worker"],"squid_image":SQUID_IMAGE,"opencode_image":OPENCODE_IMAGE,"agent":"plan","provider_id":PROVIDER_ID,"model_id":model_id,"provider_host":PROVIDER_HOST,"selection_source":"MCP_CALLER_LIVE_ZERO_PRICE_CATALOG","selection_method":"CATALOG_REVALIDATED_BEFORE_CLI_LAUNCH_AND_INLINE_CONFIG","catalog_rechecked_at_utc":selected_model["checked_at_utc"],"inline_config_content":inline_config_content(model_id),"workspace_config_policy":"SERVER_CONFIG_AND_CLI_WIN","worker_argv":argv,"stdin":"DEVNULL","preparation_budget_ms":PREPARATION_BUDGET_MS,"child_idle_timeout_ms":CHILD_IDLE_TIMEOUT_MS,"active_operation_timeout_ms":ACTIVE_OPERATION_TIMEOUT_MS,"child_absolute_timeout_ms":CHILD_ABSOLUTE_TIMEOUT_MS,"outer_watchdog_ms":OUTER_WATCHDOG_MS},indent=2),encoding="utf-8")
         _preparation_state(evdir, job, workspace_id, state, "WORKER_LAUNCH", started)
         _prepare_guard(preparation_deadline, state)
         marks["worker_start_ms"]=int((time.monotonic()-started)*1000); state["execution_state"]="RUNNING"; child_started=time.monotonic(); proc=subprocess.Popen(argv,stdout=subprocess.PIPE,stderr=subprocess.PIPE,stdin=subprocess.DEVNULL,text=True,encoding="utf-8",errors="replace")
@@ -337,9 +348,9 @@ def execute(goal, workspace_id="BRIDGE_LAB", worker_profile="RECON", inject_fail
             process_evidence = _capture_process_evidence(stdout, stderr, evdir)
             worker_state = _capture_worker_state(res["worker"], evdir)
             proxy_evidence = _capture_proxy_evidence(res["proxy"], evdir)
-            _run([str(DOCKER),"rm","-f",res["worker"]],timeout=15); proc.wait(timeout=15); status="TIMEOUT"; marks["timeout_termination_ms"]=int((time.monotonic()-started)*1000); marks["total_ms"]=marks["timeout_termination_ms"]; marks["last_progress_age_ms"]=state.get("last_progress_age_ms"); marks["last_progress_type"]=state.get("last_progress_type"); out=result(status,job,workspace_id,state.get("session_id"),"",marks["total_ms"],None,manifest,stderr,marks,evidence()); out["timeout_reason"]=timeout_reason; out["execution_state"]=state.get("execution_state"); out["outstanding_step_id"]=state.get("outstanding_step_id"); out["active_operation_age_ms"]=state.get("active_operation_age_ms"); out["source_snapshot"]={"workspace_id": manifest.get("workspace_id", workspace_id), "policy_version": manifest.get("policy_version"), "created_at": manifest.get("created_at"), "file_count": manifest.get("file_count"), "total_bytes": manifest.get("total_bytes"), "repo": manifest.get("repo", {}), "refresh_ms": marks.get("source_snapshot_refresh_ms", 0)}; out["privacy_scan"]=privacy_summary; out["containment"]=containment; out["evidence"].update({"process":process_evidence,"worker_state":worker_state,"squid":proxy_evidence}); (evdir/"result.json").write_text(json.dumps(out,indent=2),encoding="utf-8"); return out
+            _run([str(DOCKER),"rm","-f",res["worker"]],timeout=15); proc.wait(timeout=15); status="TIMEOUT"; marks["timeout_termination_ms"]=int((time.monotonic()-started)*1000); marks["total_ms"]=marks["timeout_termination_ms"]; marks["last_progress_age_ms"]=state.get("last_progress_age_ms"); marks["last_progress_type"]=state.get("last_progress_type"); out=result(status,job,workspace_id,state.get("session_id"),"",marks["total_ms"],None,manifest,stderr,marks,evidence(model_id=model_id)); out["timeout_reason"]=timeout_reason; out["execution_state"]=state.get("execution_state"); out["outstanding_step_id"]=state.get("outstanding_step_id"); out["active_operation_age_ms"]=state.get("active_operation_age_ms"); out["source_snapshot"]={"workspace_id": manifest.get("workspace_id", workspace_id), "policy_version": manifest.get("policy_version"), "created_at": manifest.get("created_at"), "file_count": manifest.get("file_count"), "total_bytes": manifest.get("total_bytes"), "repo": manifest.get("repo", {}), "refresh_ms": marks.get("source_snapshot_refresh_ms", 0)}; out["privacy_scan"]=privacy_summary; out["containment"]=containment; out["evidence"].update({"process":process_evidence,"worker_state":worker_state,"squid":proxy_evidence}); (evdir/"result.json").write_text(json.dumps(out,indent=2),encoding="utf-8"); return out
         exit_code=proc.returncode; parsed=parse_events(stdout); marks.setdefault("time_to_first_output_ms", None); marks.setdefault("time_to_session_ms", None); marks["child_execution_ms"]=int((time.monotonic()-child_started)*1000); marks["model_execution_ms"]=marks["child_execution_ms"]
-        inference = evidence(parsed.get("observed_provider"), parsed.get("observed_model"))
+        inference = evidence(model_id, parsed.get("observed_provider"), parsed.get("observed_model"))
         if inference["observed_matches_configured"] is False: status="IDENTITY_MISMATCH"
         elif cancel_event.is_set(): status="CANCELLED"
         elif parsed["error"]: status="MODEL_ERROR" if "APIError" in json.dumps(parsed["error"]) else "CLIENT_ERROR"
@@ -352,21 +363,27 @@ def execute(goal, workspace_id="BRIDGE_LAB", worker_profile="RECON", inject_fail
         marks["total_ms"]=int((time.monotonic()-started)*1000)
         out=result("SNAPSHOT_CONTENT_POLICY_BLOCKED",job,workspace_id,None,"",marks["total_ms"],None,
                    manifest or {"schema":"deputy.recon.snapshot.v1","file_count":0,"total_bytes":0},
-                   "",marks,evidence())
+                   "",marks,evidence(model_id=model_id))
         out["privacy_scan"]={"status":"BLOCKED","secret_values_returned":False}
         (evdir/"result.json").write_text(json.dumps(out,indent=2),encoding="utf-8")
         return out
     except PreparationCancelled:
-        marks["total_ms"]=int((time.monotonic()-started)*1000); out=result("CANCELLED",job,workspace_id,None,"",marks["total_ms"],exit_code,manifest or {"schema":"deputy.recon.snapshot.v1","file_count":0,"total_bytes":0},"CANCELLED",marks,evidence()); out["execution_state"]="PREPARING"; out["preparation_phase"] = state.get("preparation_phase"); out["preparation_elapsed_ms"] = marks["total_ms"]; (evdir/"result.json").write_text(json.dumps(out,indent=2),encoding="utf-8"); return out
+        marks["total_ms"]=int((time.monotonic()-started)*1000); out=result("CANCELLED",job,workspace_id,None,"",marks["total_ms"],exit_code,manifest or {"schema":"deputy.recon.snapshot.v1","file_count":0,"total_bytes":0},"CANCELLED",marks,evidence(model_id=model_id)); out["execution_state"]="PREPARING"; out["preparation_phase"] = state.get("preparation_phase"); out["preparation_elapsed_ms"] = marks["total_ms"]; (evdir/"result.json").write_text(json.dumps(out,indent=2),encoding="utf-8"); return out
     except PreparationTimeout:
-        marks["total_ms"]=int((time.monotonic()-started)*1000); out=result("TIMEOUT",job,workspace_id,None,"",marks["total_ms"],exit_code,manifest or {"schema":"deputy.recon.snapshot.v1","file_count":0,"total_bytes":0},"PREPARATION_TIMEOUT",marks,evidence()); out["timeout_reason"]="PREPARATION_TIMEOUT"; out["execution_state"]="PREPARING"; out["preparation_phase"] = state.get("preparation_phase"); out["preparation_elapsed_ms"] = marks["total_ms"]; (evdir/"result.json").write_text(json.dumps(out,indent=2),encoding="utf-8"); return out
+        marks["total_ms"]=int((time.monotonic()-started)*1000); out=result("TIMEOUT",job,workspace_id,None,"",marks["total_ms"],exit_code,manifest or {"schema":"deputy.recon.snapshot.v1","file_count":0,"total_bytes":0},"PREPARATION_TIMEOUT",marks,evidence(model_id=model_id)); out["timeout_reason"]="PREPARATION_TIMEOUT"; out["execution_state"]="PREPARING"; out["preparation_phase"] = state.get("preparation_phase"); out["preparation_elapsed_ms"] = marks["total_ms"]; (evdir/"result.json").write_text(json.dumps(out,indent=2),encoding="utf-8"); return out
+    except ModelSelectionChanged as exc:
+        marks["total_ms"]=int((time.monotonic()-started)*1000)
+        out=result("MODEL_ERROR",job,workspace_id,None,"",marks["total_ms"],None,manifest or {"schema":"deputy.recon.snapshot.v1","file_count":0,"total_bytes":0},"",marks,evidence(model_id=model_id))
+        out["model_selection_error"] = exc.code
+        (evdir/"result.json").write_text(json.dumps(out,indent=2),encoding="utf-8")
+        return out
     except Exception as exc:
         try:
             _write_containment_error(evdir, exc, state, res)
         except Exception:
             # Diagnostics are best-effort; preserve the sanitized result and cleanup path.
             pass
-        marks["total_ms"]=int((time.monotonic()-started)*1000); out=result("CONTAINMENT_ERROR",job,workspace_id,None,"",marks["total_ms"],exit_code,manifest or {"schema":"deputy.recon.snapshot.v1","file_count":0,"total_bytes":0},"CONTAINMENT_ERROR",marks,evidence()); (evdir/"result.json").write_text(json.dumps(out,indent=2),encoding="utf-8"); return out
+        marks["total_ms"]=int((time.monotonic()-started)*1000); out=result("CONTAINMENT_ERROR",job,workspace_id,None,"",marks["total_ms"],exit_code,manifest or {"schema":"deputy.recon.snapshot.v1","file_count":0,"total_bytes":0},"CONTAINMENT_ERROR",marks,evidence(model_id=model_id)); (evdir/"result.json").write_text(json.dumps(out,indent=2),encoding="utf-8"); return out
     finally:
         _cleanup(res)
         (evdir/"cleanup.json").write_text(json.dumps({"resources":res,"remaining":list_resources()},indent=2),encoding="utf-8")

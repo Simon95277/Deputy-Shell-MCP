@@ -12,9 +12,14 @@ model through MCP.
 
 The supervising model chooses **intent**. The server chooses **authority**.
 
-The caller may provide a reconnaissance goal. The server fixes the source
-repository and workspace. Callers may not choose host paths, Docker arguments,
-networks, providers, models, worker profiles, timeouts, mounts, or executables.
+The caller configures a model ID from `deputy_models()` once using
+`deputy_select_model(model_id)`. The server saves only that model ID in its
+runtime state and reuses it for each reconnaissance goal. It checks that
+OpenCode still lists the selected model with zero text input/output prices and
+that it supports tool-using reconnaissance. If not, it stops and returns a
+fresh catalog for a replacement choice. The server fixes the source
+repository/workspace, provider, provider host, host paths, Docker arguments,
+networks, worker profile, timeout, mounts and executables.
 
 The primary production use is read-only reconnaissance of the Deputy Shell
 repository through a fresh sanitized snapshot.
@@ -31,14 +36,21 @@ DeputyWorkers.
 
 ## Public MCP tools
 
-Normal model-facing work uses only `deputy_recon(goal)`. One call returns a
-terminal semantic result; the server performs the internal lifecycle,
+For initial setup, or after a stale-selection response, use `deputy_models()`
+and `deputy_select_model(model_id)` to configure the model once. For ordinary
+work, call only `deputy_recon(goal)`; do not list or choose a model again while
+the saved selection remains eligible. The catalog lists current zero-price
+OpenCode models and marks reconnaissance-compatible choices. The recon tool
+returns a terminal semantic result; the server performs the internal lifecycle,
 reconciliation, waiting, evidence persistence, and cleanup. The public tool
-does not accept a workspace, job ID, timeout, or lifecycle instruction. The
-server binds production reconnaissance to its configured Deputy Shell source.
+does not accept a workspace, job ID, timeout, provider, endpoint or lifecycle
+instruction. The server binds production reconnaissance to its configured
+Deputy Shell source and fails closed if the selected model is no longer free.
 
-The default production MCP surface contains exactly one tool:
+The default production MCP surface contains exactly three tools:
 
+- `deputy_models`
+- `deputy_select_model`
 - `deputy_recon`
 
 Owner-only lifecycle/status/cancellation tools are registered only when the
@@ -128,23 +140,26 @@ and it is not a guarantee that provider-visible source is non-sensitive.
 The worker image is digest-pinned.
 
 The server invokes OpenCode in JSON event mode using the `plan` agent and
-`/workspace` as the working directory. It server-selects exactly:
+`/workspace` as the working directory. It fixes the provider and accepts a
+caller-selected model only after a live zero-price check:
 
 - provider: `opencode`
-- model: `muse-spark-1.3-contributor-free`
+- provider host: `opencode.ai`
+- model: persistent exact `model_id` configured from `deputy_models()`
 
-The launch contract carries the exact `opencode/muse-spark-1.3-contributor-free`
-selector through `--model` and also supplies secret-free,
-server-generated `OPENCODE_CONFIG_CONTENT`. The goal is passed as ordinary
-final task content; it is never parsed as OpenCode flags. Project-local
-OpenCode configuration is therefore not allowed to replace the server-owned
-provider/model selection.
+The launch contract carries the exact `opencode/<model_id>` selector through
+`--model` and also supplies secret-free, server-generated
+`OPENCODE_CONFIG_CONTENT`. The saved selection must remain listed and
+recon-compatible. The server checks zero price before preparation and again
+just before launch. If the saved choice is stale, it blocks and returns a new
+catalog rather than silently switching models. The goal is passed as ordinary final task content; it is never parsed
+as OpenCode flags. Project-local OpenCode configuration cannot replace the
+fixed provider or selected model.
 
-The current pinned image exposes the provider/model pair through its built-in
-model catalogue. Runtime event output from the qualified route does not
-always expose provider/model fields, so evidence distinguishes configured
-identity from observed identity and never claims runtime verification when
-those fields are absent.
+The pinned image's built-in catalog must contain the selected model. Runtime
+event output does not always expose provider/model fields, so evidence
+distinguishes the caller-selected, catalog-checked ID from observed identity
+and never claims runtime verification when those fields are absent.
 
 The provider network boundary is enforced separately by Squid.
 

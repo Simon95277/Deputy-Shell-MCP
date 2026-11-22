@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from config import DEPUTY_SHELL_ROOT, DOCKER_EXE, RUNTIME_ROOT
-from bridge.provider_contract import MODEL_ID, PROVIDER_ID, validate_contract
+from bridge.provider_contract import MODEL_SELECTION_CONTRACT_VERSION, PROVIDER_ID, SELECTION_SOURCE, validate_contract
 
 
 def _executable_available(value: Path) -> bool:
@@ -44,7 +44,8 @@ def check() -> dict[str, object]:
         "python": ".".join(str(x) for x in sys.version_info[:3]),
         "mcp_available": importlib.util.find_spec("mcp") is not None,
         "provider": PROVIDER_ID,
-        "model": MODEL_ID,
+        "model_selection": SELECTION_SOURCE,
+        "model_selection_contract": MODEL_SELECTION_CONTRACT_VERSION,
         "runtime_root": str(RUNTIME_ROOT),
         "runtime_root_server_owned": True,
         "mutated_external_state": False,
