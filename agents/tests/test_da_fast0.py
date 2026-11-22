@@ -21,7 +21,7 @@ class DeputyAgentsContractTests(unittest.TestCase):
         self.assertTrue(importlib.metadata.version("mcp").startswith("2."))
         self.assertIsInstance(server.mcp, MCPServer)
         names = {tool.name for tool in asyncio.run(server.mcp.list_tools())}
-        self.assertEqual(names, {"deputy_recon"})
+        self.assertEqual(names, {"deputy_models", "deputy_select_model", "deputy_recon"})
 
     def test_server_compiles(self):
         subprocess.run([sys.executable, "-m", "py_compile", str(ROOT / "server.py")], check=True)
@@ -66,7 +66,7 @@ class DeputyAgentsContractTests(unittest.TestCase):
 
     def test_public_schema_source_is_bounded(self):
         text = (ROOT / "server.py").read_text(encoding="utf-8")
-        self.assertIn('execute(goal=goal, workspace_id="DEPUTY_SHELL", worker_profile="RECON")', text)
+        self.assertIn('execute(goal=goal, workspace_id="DEPUTY_SHELL", worker_profile="RECON", model_id=model_id)', text)
         self.assertIn("def deputy_recon(goal: str)", text)
         self.assertNotIn("workspace_id: Literal", text[text.index("def deputy_recon(goal: str)"):text.index("def deputy_recon_start")])
         for forbidden in ("model:", "provider:", "docker", "container", "path:", "cwd:"):
@@ -195,7 +195,8 @@ class DeputyAgentsContractTests(unittest.TestCase):
         try:
             with patch.object(server, "execute", side_effect=fake_execute):
                 t0 = time.monotonic()
-                accepted = server.deputy_recon_start("bounded", "BRIDGE_LAB")
+                with patch.object(server, "load_model_id", return_value="big-pickle"):
+                    accepted = server.deputy_recon_start("bounded", "BRIDGE_LAB")
                 self.assertLess(time.monotonic() - t0, 1)
                 self.assertEqual(accepted["status"], "STARTED")
                 job_id = accepted["job_id"]
@@ -235,7 +236,8 @@ class DeputyAgentsContractTests(unittest.TestCase):
         for job_id in ids:
             server._JOBS[job_id] = {"job_id": job_id, "workspace_id": "BRIDGE_LAB", "created_at": time.time(), "status": "RUNNING"}
         try:
-            self.assertEqual(server.deputy_recon_start("bounded", "BRIDGE_LAB")["status"], "BUSY")
+            with patch.object(server, "load_model_id", return_value="big-pickle"):
+                self.assertEqual(server.deputy_recon_start("bounded", "BRIDGE_LAB")["status"], "BUSY")
         finally:
             for job_id in ids: server._JOBS.pop(job_id, None)
 
@@ -289,7 +291,8 @@ class DeputyAgentsContractTests(unittest.TestCase):
     def test_preparation_timeout_is_terminal_without_worker_launch(self):
         import bridge.executor as executor
         with tempfile.TemporaryDirectory() as td, patch.object(executor, "LAB", Path(td)), patch.object(executor, "EVIDENCE_ROOT", Path(td) / "evidence"), patch.object(executor, "_prepare_snapshot", side_effect=executor.PreparationTimeout("PREPARATION_TIMEOUT")), patch.object(executor, "_cleanup"), patch.object(executor, "list_resources", return_value={"containers": [], "networks": []}):
-            out = executor.execute("bounded", "DEPUTY_SHELL", job_id="prep-timeout-test")
+            with patch.object(executor, "require_recon_model", return_value={"model_id": "big-pickle", "checked_at_utc": "test"}):
+                out = executor.execute("bounded", "DEPUTY_SHELL", job_id="prep-timeout-test", model_id="big-pickle")
         self.assertEqual(out["status"], "TIMEOUT")
         self.assertEqual(out["timeout_reason"], "PREPARATION_TIMEOUT")
         self.assertEqual(out["execution_state"], "PREPARING")

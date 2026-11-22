@@ -5,6 +5,15 @@ independent MCP runtimes: DeputyAgents and DeputyWorkers.
 
 ## Unreleased
 
+### Added
+
+- Add an Agents `deputy_models()` catalog and `deputy_select_model(model_id)`
+  one-time configuration flow for OpenCode zero-price, tool-capable models.
+  `deputy_recon(goal)` reuses the saved model and requests reconfiguration only
+  when it is no longer eligible. The server rechecks live pricing and does not
+  fall back to a paid model. This source change is not included in the published
+  Agents `1.0.0` artifact.
+
 ### Documentation
 
 - Correct repository publication status and link to the published beta assets.

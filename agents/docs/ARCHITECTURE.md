@@ -3,10 +3,13 @@
 This describes Agents `1.0.0`, the companion in the
 [published Focused A4 Beta](https://github.com/Simon95277/Deputy-Shell-MCP/releases/tag/workers-v1.2.0b1). Start with the repository
 [installation guide](../../docs/INSTALLATION.md) and [host setup](../../docs/MCP_HOST_SETUP.md).
+The model-catalog selection behavior documented here is an unreleased source
+change and is not present in the immutable `1.0.0` artifact.
 
 | Contract | Current value |
 | --- | --- |
 | Runtime | `DA-PRIVACY-1` |
+| Model selection | `DA-MODEL-CATALOG-1` |
 | Source policy | `DA-PRIVACY-1-positive-policy-v1` |
 | Byte coherence | `DA-BYTE-COHERENCE-1` |
 | Source-policy schema | `deputy.agents.source-policy.v1` |
@@ -15,11 +18,21 @@ This describes Agents `1.0.0`, the companion in the
 
 ## Public interface and authority
 
-The default production inventory is **one tool**, `deputy_recon(goal)`. The
-caller supplies a nonempty question, bounded to 4,096 UTF-8 bytes. The server
-fixes its configured production repository/workspace and handles preparation,
-execution, waiting, persistence and cleanup. The returned result is terminal;
-the model does not choose paths, a provider, executable, mount, timeout or job ID.
+The default production inventory is **three tools**: `deputy_models()`,
+`deputy_select_model(model_id)` and `deputy_recon(goal)`. The catalog returns
+OpenCode-owned chat/decision models whose live catalog reports zero text
+input/output prices, and marks which entries support reconnaissance. The
+caller selects one recon-compatible model ID once; Agents saves only that ID
+under its runtime root and reuses it for later calls. Do not call the catalog
+or selector for ordinary recon work. If the saved model becomes unavailable,
+Agents blocks before launch and returns the current catalog for reconfiguration.
+The caller supplies a nonempty goal, bounded to 4,096 UTF-8 bytes. The server
+fixes its configured production repository/workspace, provider, endpoint,
+executable, mount, timeout and lifecycle. It rechecks the model's zero price
+before launching OpenCode and has no paid-model fallback.
+The live catalog cannot prove that every listed model is recognized by the
+digest-pinned runner image; the tool returns `runner_image_compatibility` as
+`NOT_VERIFIED` until that image is checked.
 
 Owner-only `deputy_recon_start`, `deputy_recon_status` and
 `deputy_recon_cancel` are registered only with the exact server process setting
@@ -40,7 +53,16 @@ subsystem. An Agents report never grants permission for a Worker or host action.
 ## Source-to-provider flow
 
 ```text
+deputy_models()
+  -> fixed unauthenticated OpenCode catalog endpoint
+  -> filter OpenCode-owned models to zero text input/output price
+
+deputy_select_model(model_id)
+  -> revalidate selected model against live zero-price catalog
+  -> persist the model ID under the owner-controlled runtime root
+
 deputy_recon(goal)
+  -> load the saved model ID; revalidate against live zero-price catalog
   -> server-owned repository and source policy
   -> canonical source selection and source-before hashes
   -> copy a private candidate; hash candidate bytes
@@ -49,6 +71,7 @@ deputy_recon(goal)
   -> whole-snapshot byte coherence
   -> qualified shared master; per-job copy under snapshot lock
   -> mount only that copy read-only at /workspace
+  -> revalidate saved model immediately before launch
   -> OpenCode child; provider-only proxy egress
   -> bounded public report; local evidence; mandatory cleanup
 ```
@@ -93,13 +116,17 @@ to expose source to the child.
 
 ## Provider and container contract
 
-The server selects provider `opencode`, model `muse-spark-1.3-contributor-free`
-and provider host `opencode.ai`. Selection source is `SERVER_OWNED`; the selector
-is supplied through the CLI and inline server configuration. Project content
+The server fixes provider `opencode` and provider host `opencode.ai`. A
+caller-selected model ID must appear in the live OpenCode catalog with zero
+text input and output prices. The server verifies it before preparation and
+again immediately before launch, and also requires a chat model with tool
+calling for reconnaissance. The exact `opencode/<model_id>` selector is
+supplied through the CLI and inline server configuration. Project content
 cannot replace it. A missing route or observed identity mismatch fails closed;
-there is no fallback provider/model. The qualified route required no injected
-credential. Provider pricing/availability is external; the model name is not
-a promise of free inference forever.
+there is no fallback provider/model. The catalog request is an unauthenticated
+GET to the fixed OpenCode host, returns only bounded model metadata, and sends
+no repository source. Provider pricing/availability can still change at any
+time; a live zero-price listing is not a permanent-free guarantee.
 
 OpenCode runs with the `plan` agent, JSON events and `/workspace` as its working
 directory. The goal is ordinary task content, never parsed as execution flags.

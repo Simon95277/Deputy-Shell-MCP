@@ -79,8 +79,8 @@ class LifecycleHardeningTests(unittest.TestCase):
         executor.PENDING_CANCELS.add("e" * 32)
         import shutil
         shutil.rmtree(executor.EVIDENCE_ROOT / ("e" * 32), ignore_errors=True)
-        with mock.patch.object(executor, "_prepare_snapshot", side_effect=AssertionError("snapshot must not start")), mock.patch.object(executor, "_cleanup"), mock.patch.object(executor, "list_resources", return_value={"containers": [], "networks": []}):
-            out = executor.execute("bounded", "BRIDGE_LAB", job_id="e" * 32)
+        with mock.patch.object(executor, "require_recon_model", return_value={"model_id": "big-pickle", "checked_at_utc": "test"}), mock.patch.object(executor, "_prepare_snapshot", side_effect=AssertionError("snapshot must not start")), mock.patch.object(executor, "_cleanup"), mock.patch.object(executor, "list_resources", return_value={"containers": [], "networks": []}):
+            out = executor.execute("bounded", "BRIDGE_LAB", job_id="e" * 32, model_id="big-pickle")
         self.assertEqual(out["status"], "CANCELLED"); self.assertNotIn("e" * 32, executor.PENDING_CANCELS)
 
     def test_repeated_cancel_is_safe(self):

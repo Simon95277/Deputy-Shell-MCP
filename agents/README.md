@@ -3,8 +3,15 @@
 DeputyAgents lets an MCP coding assistant ask one question about selected
 source. The server builds and qualifies a snapshot, mounts a per-job copy
 read-only in a restricted Docker container, runs an OpenCode child and returns
-an advisory report. The default tool is `deputy_recon(goal)`; the caller cannot
-choose a source root, executable, provider or model.
+an advisory report. Published Agents `1.0.0` exposes `deputy_recon(goal)` with
+its original fixed model contract. This unreleased source adds
+`deputy_models()`, `deputy_select_model(model_id)` and `deputy_recon(goal)`.
+The caller chooses a currently zero-priced, tool-capable chat model once; the
+server stores that model ID under its runtime root and reuses it. If the live
+catalog no longer accepts it, reconnaissance stops before launch and asks for
+a replacement selection. Compatibility with the pinned OpenCode image is not
+yet qualified. The source root, executable, provider, endpoint and lifecycle
+remain server-owned.
 
 Agents `1.0.0` is the companion package in the
 [published Focused A4 Beta](https://github.com/Simon95277/Deputy-Shell-MCP/releases/tag/workers-v1.2.0b1).
@@ -48,12 +55,41 @@ the operator can provide bounded `deputy.agents.source-policy.v1` JSON through
 `DEPUTYAGENTS_SOURCE_POLICY_JSON`; no caller can choose a policy path or modify
 it through a goal. The installation guide includes a complete example.
 
+## Use the model picker
+
+The default MCP surface exposes three tools. Call `deputy_models()` and choose
+a row with `recon_compatible: true`. Configure the exact ID once with
+`deputy_select_model`; later reconnaissance calls need only the goal:
+
+```text
+deputy_select_model(model_id="<model_id copied from deputy_models>")
+deputy_recon(goal="Summarize how worker-loss recovery is handled.")
+```
+
+The server checks the selected model against the live catalog before saving,
+before work begins, and again before launching the child. A model listed as
+free can later become unavailable or paid; in that case the request is blocked
+without a fallback and returns fresh choices for reconfiguration.
+The catalog also marks non-chat entries, such as decision-only models, as not
+compatible with reconnaissance. `runner_image_compatibility` remains
+`NOT_VERIFIED` until the pinned image can be checked.
+
 ## Costs, privacy and limits
 
 Source code is Apache-2.0 licensed. Supervisor/model-host charges are separate.
-The qualified server selects `opencode` / `muse-spark-1.3-contributor-free` and
-required no injected provider credential. Provider availability/pricing is
-external, with no permanent-free-service promise or fallback route.
+The `deputy_models()` tool reads OpenCode's public model catalog and returns
+models with zero listed text input, output and cache prices. The
+`recon_compatible` flag means the live catalog advertises a chat model with
+tool support; it does not prove the pinned runner image recognizes it. The
+server checks the live catalog before preparation and again immediately before
+launching OpenCode. It fails closed if the model is no longer listed at zero
+price or no longer supports the required chat/tool interface. It has no
+paid-model fallback. OpenCode can change prices or availability at any time;
+the catalog check is not a permanent free-service guarantee.
+
+OpenCode's free-model privacy terms differ by provider. Review those terms
+before submitting source. Source and model output may be exposed to the selected
+provider as described below.
 
 Selected source may be sent to the provider and quoted in model output. A local
 high-confidence content scan and `DA-BYTE-COHERENCE-1` byte validation precede

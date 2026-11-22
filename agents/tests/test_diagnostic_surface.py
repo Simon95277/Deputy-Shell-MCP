@@ -37,7 +37,7 @@ class DiagnosticSurfaceTests(unittest.TestCase):
 
     @staticmethod
     def _production_names():
-        return ["deputy_recon"]
+        return sorted(["deputy_models", "deputy_select_model", "deputy_recon"])
 
     def test_01_missing_config_disables_diagnostics(self):
         self.assertEqual(self._tool_names(), self._production_names())
@@ -127,10 +127,10 @@ class DiagnosticSurfaceTests(unittest.TestCase):
         import server
         import inspect
         self.assertEqual(list(inspect.signature(server.deputy_recon).parameters), ["goal"])
-        with patch.object(server, "execute", return_value={"status":"PASS", "job_id":"x", "session_id":"secret", "workspace_id":"DEPUTY_SHELL", "text":"Found `app/src/Main.kt`"}) as execute:
+        with patch.object(server, "load_model_id", return_value="big-pickle"), patch.object(server, "execute", return_value={"status":"PASS", "job_id":"x", "session_id":"secret", "workspace_id":"DEPUTY_SHELL", "text":"Found `app/src/Main.kt`"}) as execute:
             out = server.deputy_recon("find architecture")
-        execute.assert_called_once_with(goal="find architecture", workspace_id="DEPUTY_SHELL", worker_profile="RECON")
-        self.assertEqual(out, {"status":"PASS", "report":"Found `app/src/Main.kt`"})
+        execute.assert_called_once_with(goal="find architecture", workspace_id="DEPUTY_SHELL", worker_profile="RECON", model_id="big-pickle")
+        self.assertEqual(out, {"status":"PASS", "report":"Found `app/src/Main.kt`", "model_id": None})
 
     def test_22_runtime_marker_is_surface_one(self):
         import server

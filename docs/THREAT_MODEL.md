@@ -51,13 +51,21 @@ packages, checksums, and a bounded manifest.
 ## Agents
 
 The AI child is untrusted. The design addresses prompt injection, provider
-exposure, server-owned provider/model selection, workspace configuration
+exposure, constrained caller model selection, workspace configuration
 override, snapshot integrity, Docker containment, provider-only networking,
-and lifecycle cleanup. The live repository is not mounted. The fixed Agents
-contract selects `opencode` / `muse-spark-1.3-contributor-free`; callers and
-snapshot content cannot select a different provider or model, and no host
-credential environment is forwarded. Runtime identity is reported as
-observed only when OpenCode emits both identity fields.
+and lifecycle cleanup. The live repository is not mounted. Agents fixes
+provider `opencode` and host `opencode.ai`; callers may select only an
+OpenCode-owned chat model whose live catalog entry reports zero text input and
+output price and tool support. The selected model ID is persisted under the
+operator-controlled runtime root and reused; if the live catalog no longer
+accepts it, Agents blocks and requests reconfiguration. The server rechecks the
+entry before launch, and no host credential environment is forwarded. Catalog
+data and provider pricing can change; each check is point-in-time, not a durable
+price guarantee. Catalog tool support also does not prove compatibility with
+the digest-pinned runner image; that compatibility remains unverified. Runtime
+identity is reported as observed only when OpenCode emits both identity fields.
+The published Agents `1.0.0` artifact remains unchanged and does not include
+this unreleased model-picker change.
 
 ## Workers
 

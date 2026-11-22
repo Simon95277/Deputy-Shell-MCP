@@ -77,7 +77,7 @@ class SourcePolicyAndPrivacyTests(unittest.TestCase):
         import asyncio
         import server
         public_tools = asyncio.run(server.mcp.list_tools())
-        self.assertEqual({tool.name for tool in public_tools}, {"deputy_recon"})
+        self.assertEqual({tool.name for tool in public_tools}, {"deputy_models", "deputy_select_model", "deputy_recon"})
         self.assertNotIn("source_policy", json.dumps([tool.input_schema for tool in public_tools]))
 
     def test_goal_text_cannot_change_source_policy(self):
@@ -585,9 +585,9 @@ class SourcePolicyAndPrivacyTests(unittest.TestCase):
                 docker_calls.append(list(argv))
                 return subprocess.CompletedProcess(argv, 0, "", "")
 
-            with patch.object(executor, "_run", side_effect=fake_run):
+            with patch.object(executor, "_run", side_effect=fake_run), patch.object(executor, "require_recon_model", return_value={"model_id": "big-pickle", "checked_at_utc": "test"}):
                 synthetic_host_path = "C:" + chr(92) + "Users" + chr(92) + "SyntheticUser" + chr(92) + "private-repo"
-                result = executor.execute("synthetic scan " + synthetic_host_path, workspace_id="DEPUTY_SHELL", job_id="privacy-negative-fixture")
+                result = executor.execute("synthetic scan " + synthetic_host_path, workspace_id="DEPUTY_SHELL", job_id="privacy-negative-fixture", model_id="big-pickle")
             self.assertEqual(result["status"], "SNAPSHOT_CONTENT_POLICY_BLOCKED")
             commands = [call[1:] for call in docker_calls]
             self.assertFalse(any(len(c) > 1 and c[0] == "network" and c[1] == "create" for c in commands))

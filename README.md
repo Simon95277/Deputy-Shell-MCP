@@ -58,7 +58,7 @@ operator choice made before the server starts.
 | --- | --- | --- |
 | Legacy Workers | `deputy_observe(request)`, `deputy_act(request)` | One typed request selects an existing registered operation |
 | Focused A4 Beta | `deputy_prepare`, `deputy_choose`, `deputy_observe`, `deputy_act` | Preparation resolves a supported request into a short-lived, single-use intent |
-| Agents | `deputy_recon(goal)` | One question about the operator-configured source |
+| Agents | `deputy_models()`, `deputy_select_model(model_id)` once, then `deputy_recon(goal)` | A saved free-model choice is reused; select again only when it is missing or no longer eligible |
 
 Legacy Workers retains **22 registered operations**, split into 13 observations
 and 9 execution or device-changing operations. Some accept bounded
@@ -112,10 +112,30 @@ The project is [Apache-2.0 licensed](LICENSE), with no project software license
 fee. Workers runs locally and makes no AI inference request. Your MCP host or
 supervisor model may have separate subscription or usage charges.
 
-Agents contacts an external provider. The qualified server configuration is
-provider `opencode`, model `muse-spark-1.3-contributor-free`. The qualified route
-required no injected credential; its model name is not a promise of permanent
-free service or availability. The server does not fall back to another route.
+Agents contacts the OpenCode `opencode` provider. The published Agents `1.0.0` package has a fixed
+model selection and does not include the live model picker described below.
+The current unreleased source adds `deputy_models()` and
+`deputy_select_model(model_id)`; no new package or release has been published
+for that change. The selected model ID is saved under the Agents runtime root.
+The selector only offers OpenCode catalog entries currently reporting zero
+text input/output prices, and it rechecks before launch. Prices and availability
+can change; this does not promise that future inference stays free. There is no
+paid-model fallback.
+
+For an unreleased source installation, call `deputy_models()` once, choose an
+entry with `recon_compatible: true`, and configure it once:
+
+```text
+deputy_select_model(model_id="<listed model_id>")
+deputy_recon(goal="Review the bounded source snapshot.")
+```
+
+Agents reuses that choice on later calls. If the model is no longer currently
+free or recon-compatible, `deputy_recon` blocks before launch and returns the
+current choices so a replacement can be selected.
+
+The free models have different data-use terms. Check OpenCode's current model
+privacy terms before sending source.
 
 Before launching the child, Agents selects source using a bounded policy,
 copies it, scans high-confidence secret patterns and checks that included bytes

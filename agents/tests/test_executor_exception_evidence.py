@@ -36,6 +36,7 @@ class ExecutorExceptionEvidenceTests(unittest.TestCase):
             with (
                 patch.object(executor, "EVIDENCE_ROOT", evidence_root),
                 patch.object(executor, "validate_contract"),
+                patch.object(executor, "require_recon_model", return_value={"model_id": "big-pickle", "checked_at_utc": "test"}),
                 patch.object(executor, "_prepare_snapshot", return_value=(manifest, {"refresh_ms": 0})),
                 patch.object(executor, "_prep_run", side_effect=prep_run),
                 patch.object(executor, "build_argv", return_value=[
@@ -50,7 +51,7 @@ class ExecutorExceptionEvidenceTests(unittest.TestCase):
                 patch.object(executor, "_run", side_effect=run),
                 patch.object(executor, "list_resources", return_value={"containers": [], "networks": []}),
             ):
-                result = executor.execute("synthetic diagnostic", "BRIDGE_LAB", job_id="a" * 32)
+                result = executor.execute("synthetic diagnostic", "BRIDGE_LAB", job_id="a" * 32, model_id="big-pickle")
 
             job_dir = evidence_root / ("a" * 32)
             local_error = json.loads((job_dir / "containment-error.json").read_text(encoding="utf-8"))
